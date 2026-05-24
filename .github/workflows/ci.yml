@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+
+  dbt-check:
+    name: dbt — parse & test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15.6
+        env:
+          POSTGRES_USER:     fraudlens
+          POSTGRES_PASSWORD: fraudlens_secret
+          POSTGRES_DB:       fraudlens
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dbt-postgres
+        run: pip install dbt-postgres==1.8.0 dbt-utils==1.2.0
+      - name: Apply OLTP schema
+        run: |
+          PGPASSWORD=fraudlens_secret psql \
+            -h localhost -U fraudlens -d fraudlens \
+            -f infra/docker/postgres/init/01_schema.sql
+      - name: dbt parse
+        working-directory: ./dbt
+        run: dbt parse --profiles-dir . --target ci
+      - name: dbt run staging
+        working-directory: ./dbt
+        run: dbt run --profiles-dir . --target ci --select staging
+      - name: dbt test
+        working-directory: ./dbt
+        run: dbt test --profiles-dir . --target ci
+
+  python-lint:
+    name: Python — ruff lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install ruff==0.4.0
+      - run: ruff check kafka/ spark/ airflow/ --output-format=github --select=E,F,W,I
+
+  spark-tests:
+    name: Spark — unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install pytest==8.2.0 pyspark==3.5.1
+      - run: pytest spark/tests/ -v --tb=short

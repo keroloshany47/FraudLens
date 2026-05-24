@@ -1,0 +1,317 @@
+
+# ─────────────────────────────────────────────────────────────────
+# FraudLens — Full Stack Docker Compose
+# Tuned for 12 GB RAM (Linux)
+# Estimated usage: ~9.5 GB peak
+#
+# Services:
+#   kafka          ~512 MB
+#   spark-master   ~512 MB
+#   spark-worker   ~1.5 GB  (executor memory)
+#   postgres       ~256 MB
+#   airflow-*      ~1.5 GB  (scheduler + webserver)
+#   dbt            ~256 MB  (runs on-demand)
+#   prometheus     ~128 MB
+#   grafana        ~256 MB
+# ─────────────────────────────────────────────────────────────────
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.9.2-python3.11
+  env_file: .env
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+    AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 30
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/plugins:/opt/airflow/plugins
+    - ./data:/opt/airflow/data
+    - ./dbt:/opt/airflow/dbt
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks:
+    - fraudlens-network
+
+services:
+
+  # ── 1. KAFKA (KRaft — no Zookeeper) ──────────────────────────
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: fraudlens-kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"
+      - "9101:9101"   # JMX for Prometheus
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 48
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
+      # JMX for Prometheus scraping
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: kafka
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 700m
+    networks:
+      - fraudlens-network
+
+  # ── 2. KAFKA PRODUCER (Python) ───────────────────────────────
+  kafka-producer:
+    build:
+      context: ./kafka/producer
+      dockerfile: Dockerfile
+    container_name: fraudlens-producer
+    env_file: .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      PRODUCER_DELAY_SECONDS: ${PRODUCER_DELAY_SECONDS:-0.05}
+    volumes:
+      - ./data:/data
+    depends_on:
+      kafka:
+        condition: service_healthy
+    profiles:
+      - streaming          # only starts with: docker compose --profile streaming up
+    networks:
+      - fraudlens-network
+
+  # ── 3. SPARK MASTER ──────────────────────────────────────────
+  spark-master:
+    image: apache/spark:3.5.0
+    container_name: fraudlens-spark-master
+    hostname: spark-master
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    environment:
+      SPARK_NO_DAEMONIZE: "true"
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    deploy:
+      resources:
+        limits:
+          memory: 700m
+    networks:
+      - fraudlens-network
+
+  # ── 4. SPARK WORKER ──────────────────────────────────────────
+  spark-worker:
+    image: apache/spark:3.5.0
+    container_name: fraudlens-spark-worker
+    hostname: spark-worker
+    ports:
+      - "8081:8081"
+    environment:
+      SPARK_NO_DAEMONIZE: "true"
+      SPARK_WORKER_MEMORY: 1536m
+      SPARK_WORKER_CORES: "2"
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    volumes:
+      - ./spark:/opt/spark-apps
+      - ./data:/data
+    depends_on:
+      - spark-master
+    deploy:
+      resources:
+        limits:
+          memory: 1800m
+    networks:
+      - fraudlens-network
+
+  # ── 5. POSTGRESQL (OLTP + OLAP schemas + Airflow DB) ────────
+  postgres:
+    image: postgres:15.6
+    container_name: fraudlens-postgres
+    hostname: postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fraudlens}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fraudlens_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-fraudlens}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fraudlens} -d ${POSTGRES_DB:-fraudlens}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 350m
+    networks:
+      - fraudlens-network
+
+  # ── 6. AIRFLOW — Init (runs once) ────────────────────────────
+  airflow-init:
+    <<: *airflow-common
+    container_name: fraudlens-airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username admin \
+          --firstname FraudLens \
+          --lastname Admin \
+          --role Admin \
+          --email admin@fraudlens.io \
+          --password admin
+        echo "Airflow initialized ✅"
+    restart: "no"
+
+  # ── 7. AIRFLOW — Scheduler ────────────────────────────────────
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: fraudlens-airflow-scheduler
+    command: scheduler
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname $(hostname)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 700m
+    restart: unless-stopped
+
+  # ── 8. AIRFLOW — Webserver ────────────────────────────────────
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: fraudlens-airflow-webserver
+    command: webserver
+    ports:
+      - "8082:8080"    # Airflow UI → localhost:8082
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 700m
+    restart: unless-stopped
+
+  # ── 9. DBT ────────────────────────────────────────────────────
+  dbt:
+    build:
+      context: ./dbt
+      dockerfile: Dockerfile
+    container_name: fraudlens-dbt
+    env_file: .env
+    volumes:
+      - ./dbt:/usr/app/dbt
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - dbt              # only starts with: docker compose --profile dbt up
+    networks:
+      - fraudlens-network
+
+  # ── 10. PROMETHEUS ───────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: fraudlens-prometheus
+    hostname: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-lifecycle"
+    deploy:
+      resources:
+        limits:
+          memory: 200m
+    networks:
+      - fraudlens-network
+
+  # ── 11. GRAFANA ───────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: fraudlens-grafana
+    hostname: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-fraudlens123}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_INSTALL_PLUGINS: grafana-worldmap-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+      - postgres
+    deploy:
+      resources:
+        limits:
+          memory: 300m
+    networks:
+      - fraudlens-network
+
+  # ── 12. KAFKA UI ─────────────────────────────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: fraudlens-kafka-ui
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: fraudlens
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 300m
+    networks:
+      - fraudlens-network
+
+# ── VOLUMES ───────────────────────────────────────────────────
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+
+# ── NETWORK ───────────────────────────────────────────────────
+networks:
+  fraudlens-network:
+    driver: bridge

@@ -1,0 +1,43 @@
+# Environment
+.env
+*.env
+
+# Data files (too large for git)
+data/raw/*.csv
+data/raw/*.parquet
+
+# Virtual environment
+FraudLens/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# dbt
+dbt/target/
+dbt/logs/
+dbt/.user.yml
+
+# Spark
+spark/checkpoints/
+
+# Airflow
+airflow/logs/
+
+# Terraform
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/.terraform.lock.hcl
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+Froud/

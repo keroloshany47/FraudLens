@@ -1,0 +1,21 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+
+scrape_configs:
+
+  # Prometheus self-monitoring
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # PostgreSQL metrics (query latency, connections)
+  - job_name: postgres
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # Spark master metrics (active jobs, executors)
+  - job_name: spark
+    metrics_path: /metrics/master/prometheus
+    static_configs:
+      - targets: ['spark-master:8080']
