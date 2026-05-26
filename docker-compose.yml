@@ -183,7 +183,7 @@ services:
           --role Admin \
           --email admin@fraudlens.io \
           --password admin
-        echo "Airflow initialized ✅"
+        echo "Airflow initialized "
     restart: "no"
 
   # ── 7. AIRFLOW — Scheduler ────────────────────────────────────
