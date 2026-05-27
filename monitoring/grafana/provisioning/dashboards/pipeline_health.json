@@ -1,0 +1,465 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "annotations": {
+    "list": []
+  },
+  "description": "FraudLens \u2014 Pipeline Health: Kafka lag, DLQ depth, Spark throughput, PostgreSQL connections",
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "title": "DLQ Messages (should be 0)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "fraudlens_dlq_depth",
+          "legendFormat": "DLQ depth",
+          "refId": "A",
+          "rawSql": ""
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Fraud Alerts (total)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P843E09417E56593B"
+          },
+          "rawSql": "SELECT COUNT(*) FROM fraud_alerts;",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P843E09417E56593B"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Batch Rows Loaded",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P843E09417E56593B"
+          },
+          "rawSql": "SELECT COUNT(*) FROM transactions WHERE source = 'batch';",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P843E09417E56593B"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Stream Rows Received",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "teal",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P843E09417E56593B"
+          },
+          "rawSql": "SELECT COUNT(*) FROM transactions WHERE source = 'stream';",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P843E09417E56593B"
+      }
+    },
+    {
+      "id": 5,
+      "title": "PostgreSQL Active Connections",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P843E09417E56593B"
+          },
+          "rawSql": "SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'active';",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P843E09417E56593B"
+      }
+    },
+    {
+      "id": 6,
+      "title": "Transactions Ingested Over Time",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 15
+          }
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P843E09417E56593B"
+          },
+          "rawSql": "SELECT DATE_TRUNC('hour', ingested_at) AS time, COUNT(*) AS batch_rows FROM transactions WHERE source = 'batch' GROUP BY 1 ORDER BY 1;",
+          "format": "time_series",
+          "legendFormat": "Batch",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P843E09417E56593B"
+          },
+          "rawSql": "SELECT DATE_TRUNC('hour', ingested_at) AS time, COUNT(*) AS stream_rows FROM transactions WHERE source = 'stream' GROUP BY 1 ORDER BY 1;",
+          "format": "time_series",
+          "legendFormat": "Stream",
+          "refId": "B"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P843E09417E56593B"
+      }
+    },
+    {
+      "id": 7,
+      "title": "Fraud Alerts Over Time",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 20
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P843E09417E56593B"
+          },
+          "rawSql": "SELECT DATE_TRUNC('hour', detected_at) AS time, COUNT(*) AS alerts FROM fraud_alerts GROUP BY 1 ORDER BY 1;",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P843E09417E56593B"
+      }
+    },
+    {
+      "id": 8,
+      "title": "Risk Score Distribution",
+      "type": "histogram",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "fixedColor": "orange",
+            "mode": "fixed"
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P843E09417E56593B"
+          },
+          "rawSql": "SELECT risk_score FROM fraud_alerts WHERE risk_score IS NOT NULL ORDER BY risk_score;",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P843E09417E56593B"
+      }
+    },
+    {
+      "id": 9,
+      "title": "Pipeline Status",
+      "type": "table",
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P843E09417E56593B"
+          },
+          "rawSql": "SELECT 'OLTP transactions' AS component, COUNT(*) AS count, MAX(ingested_at) AS last_updated FROM transactions UNION ALL SELECT 'Fraud alerts', COUNT(*), MAX(detected_at) FROM fraud_alerts UNION ALL SELECT 'Unique customers', COUNT(*), MAX(created_at) FROM customers UNION ALL SELECT 'Unique merchants', COUNT(*), MAX(created_at) FROM merchants;",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P843E09417E56593B"
+      }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "tags": [
+    "fraudlens",
+    "pipeline",
+    "health",
+    "engineering"
+  ],
+  "time": {
+    "from": "2019-01-01",
+    "to": "2020-12-31"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "FraudLens \u2014 Pipeline Health",
+  "uid": "fraudlens-pipeline",
+  "version": 1
+}

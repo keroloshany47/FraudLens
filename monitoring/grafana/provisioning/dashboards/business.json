@@ -1,0 +1,564 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "annotations": {
+    "list": []
+  },
+  "description": "FraudLens \u2014 Business Dashboard: fraud KPIs, transaction volume, top risky merchants",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Transactions",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short",
+          "mappings": []
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P90CE95BFBC655DDE"
+          },
+          "rawSql": "SELECT SUM(total_transactions) FROM fraudlens_dw.mart_fraud_summary;",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P90CE95BFBC655DDE"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Total Fraud Cases",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P90CE95BFBC655DDE"
+          },
+          "rawSql": "SELECT SUM(fraud_count) FROM fraudlens_dw.mart_fraud_summary;",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P90CE95BFBC655DDE"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Overall Fraud Rate %",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.3
+              },
+              {
+                "color": "red",
+                "value": 0.6
+              }
+            ]
+          },
+          "unit": "percent",
+          "decimals": 3
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P90CE95BFBC655DDE"
+          },
+          "rawSql": "SELECT ROUND(SUM(fraud_count)::numeric / NULLIF(SUM(total_transactions),0) * 100, 4) FROM fraudlens_dw.mart_fraud_summary;",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P90CE95BFBC655DDE"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Avg Fraud Amount $",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          },
+          "unit": "currencyUSD",
+          "decimals": 2
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P90CE95BFBC655DDE"
+          },
+          "rawSql": "SELECT ROUND(AVG(avg_fraud_amount)::numeric, 2) FROM fraudlens_dw.mart_fraud_summary WHERE avg_fraud_amount IS NOT NULL;",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P90CE95BFBC655DDE"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Stream Events (real-time)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "teal",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P90CE95BFBC655DDE"
+          },
+          "rawSql": "SELECT SUM(stream_count) FROM fraudlens_dw.mart_fraud_summary;",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P90CE95BFBC655DDE"
+      }
+    },
+    {
+      "id": 6,
+      "title": "Daily Fraud Rate Over Time",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P90CE95BFBC655DDE"
+          },
+          "rawSql": "SELECT txn_date AS time, ROUND(SUM(fraud_count)::numeric / NULLIF(SUM(total_transactions),0) * 100, 4) AS fraud_rate_pct FROM fraudlens_dw.mart_fraud_summary GROUP BY txn_date ORDER BY txn_date;",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P90CE95BFBC655DDE"
+      }
+    },
+    {
+      "id": 7,
+      "title": "Transaction Volume by Day",
+      "type": "barchart",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P90CE95BFBC655DDE"
+          },
+          "rawSql": "SELECT txn_date AS time, SUM(total_transactions) AS total, SUM(fraud_count) AS fraud FROM fraudlens_dw.mart_fraud_summary GROUP BY txn_date ORDER BY txn_date;",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P90CE95BFBC655DDE"
+      }
+    },
+    {
+      "id": 8,
+      "title": "Fraud Rate by Merchant Category",
+      "type": "piechart",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      },
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P90CE95BFBC655DDE"
+          },
+          "rawSql": "SELECT merchant_category, SUM(fraud_count) AS fraud_count FROM fraudlens_dw.mart_fraud_summary GROUP BY merchant_category ORDER BY fraud_count DESC LIMIT 10;",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P90CE95BFBC655DDE"
+      }
+    },
+    {
+      "id": 9,
+      "title": "Top 10 High-Risk Customers",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fraud_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 3
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "risk_tier"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-text"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "fraud_rate_pct"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P90CE95BFBC655DDE"
+          },
+          "rawSql": "SELECT customer_name, customer_state, customer_job, total_transactions, total_fraud_count, fraud_rate_pct, risk_tier, top_category FROM fraudlens_dw.mart_customer_360 ORDER BY fraud_rate_pct DESC LIMIT 10;",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P90CE95BFBC655DDE"
+      }
+    },
+    {
+      "id": 10,
+      "title": "Recent Fraud Alerts (OLTP live)",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "risk_score"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.5
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.7
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P843E09417E56593B"
+          },
+          "rawSql": "SELECT fa.detected_at, fa.trans_id, fa.risk_score, fa.distance_km, fa.alert_reason FROM fraud_alerts fa ORDER BY fa.detected_at DESC LIMIT 50;",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "postgres",
+        "uid": "P843E09417E56593B"
+      }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": [
+    "fraudlens",
+    "business",
+    "fraud"
+  ],
+  "time": {
+    "from": "2019-01-01",
+    "to": "2020-12-31"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "FraudLens \u2014 Business Dashboard",
+  "uid": "fraudlens-business",
+  "version": 1
+}
