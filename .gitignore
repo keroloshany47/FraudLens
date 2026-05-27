@@ -20,6 +20,7 @@ venv/
 dbt/target/
 dbt/logs/
 dbt/.user.yml
+dbt/dbt_packages/
 
 # Spark
 spark/checkpoints/

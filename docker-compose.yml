@@ -228,6 +228,9 @@ services:
       context: ./dbt
       dockerfile: Dockerfile
     container_name: fraudlens-dbt
+    stdin_open: true
+    tty: true
+    command: ["sleep", "infinity"]
     env_file: .env
     volumes:
       - ./dbt:/usr/app/dbt
@@ -235,7 +238,7 @@ services:
       postgres:
         condition: service_healthy
     profiles:
-      - dbt              # only starts with: docker compose --profile dbt up
+      - dbt
     networks:
       - fraudlens-network
 
