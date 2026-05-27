@@ -1,0 +1,28 @@
+name: fraudlens
+version: '1.0.0'
+config-version: 2
+
+profile: fraudlens
+
+model-paths:   ["models"]
+test-paths:    ["tests"]
+seed-paths:    ["seeds"]
+macro-paths:   ["macros"]
+target-path:   "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  fraudlens:
+    staging:
+      +materialized: view        # staging = views, cheap to rebuild
+      +schema: public            # stays in main schema alongside OLTP
+    intermediate:
+      +materialized: view        # intermediate = views too
+      +schema: public
+    marts:
+      +materialized: table       # marts = tables, fast for Grafana queries
+      +schema: fraudlens_dw      # separate OLAP schema
+      core:
+        +materialized: table
+      fraud:
+        +materialized: table

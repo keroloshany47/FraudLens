@@ -1,0 +1,82 @@
+version: 2
+
+models:
+
+  - name: stg_transactions
+    description: >
+      Cleaned and type-cast transactions from the OLTP layer.
+      Covers both batch (fraudTrain) and stream (fraudTest) sources.
+      One row per unique transaction.
+    columns:
+      - name: trans_id
+        description: Unique transaction identifier (from trans_num)
+        tests:
+          - not_null
+          - unique
+      - name: amount
+        description: Transaction amount in USD
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 50000
+      - name: is_fraud
+        description: Ground truth fraud label (0 = legitimate, 1 = fraud)
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1]
+      - name: source
+        description: Ingestion path — batch (Airflow) or stream (Spark)
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['batch', 'stream']
+      - name: trans_at
+        description: Transaction timestamp (UTC)
+        tests:
+          - not_null
+
+  - name: stg_customers
+    description: >
+      Deduplicated customer profiles from the OLTP layer.
+      One row per unique credit card number.
+    columns:
+      - name: customer_id
+        description: Surrogate key from OLTP customers table
+        tests:
+          - not_null
+          - unique
+      - name: cc_num
+        description: Credit card number — natural unique key
+        tests:
+          - not_null
+          - unique
+      - name: full_name
+        description: Concatenated first and last name
+        tests:
+          - not_null
+      - name: state
+        description: Two-letter US state code
+        tests:
+          - not_null
+
+  - name: stg_merchants
+    description: >
+      Deduplicated merchant profiles from the OLTP layer.
+      One row per unique merchant name.
+    columns:
+      - name: merchant_id
+        description: Surrogate key from OLTP merchants table
+        tests:
+          - not_null
+          - unique
+      - name: merchant_name
+        description: Merchant name — natural unique key
+        tests:
+          - not_null
+          - unique
+      - name: category
+        description: Merchant category code
+        tests:
+          - not_null

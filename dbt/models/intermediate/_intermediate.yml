@@ -1,0 +1,31 @@
+version: 2
+
+models:
+
+  - name: int_transaction_stats
+    description: >
+      Enriched transactions joining staging tables together.
+      One row per transaction with customer and merchant context attached.
+      This is the single source of truth for all mart models.
+    columns:
+      - name: trans_id
+        description: Unique transaction identifier
+        tests:
+          - not_null
+          - unique
+      - name: amount
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: is_fraud
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1]
+      - name: customer_age
+        description: Customer age in years at time of analysis
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 18
+              max_value: 110

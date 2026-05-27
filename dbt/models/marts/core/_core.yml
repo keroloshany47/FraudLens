@@ -1,0 +1,45 @@
+version: 2
+
+models:
+
+  - name: fact_transactions
+    description: >
+      Central fact table of the FraudLens star schema.
+      One row per transaction with FK references to all dimensions.
+    columns:
+      - name: trans_id
+        tests: [not_null, unique]
+      - name: customer_id
+        tests: [not_null]
+      - name: merchant_id
+        tests: [not_null]
+      - name: amount
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: is_fraud
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1]
+
+  - name: dim_customer
+    description: Customer dimension — one row per unique credit card holder
+    columns:
+      - name: customer_id
+        tests: [not_null, unique]
+
+  - name: dim_merchant
+    description: Merchant dimension — one row per unique merchant
+    columns:
+      - name: merchant_id
+        tests: [not_null, unique]
+
+  - name: dim_date
+    description: Date dimension — one row per calendar day 2019-2021
+    columns:
+      - name: date_id
+        tests: [not_null, unique]
+      - name: full_date
+        tests: [not_null, unique]

@@ -1,0 +1,15 @@
+version: 2
+
+sources:
+  - name: fraudlens_oltp
+    description: Raw OLTP tables written by Airflow (batch) and Spark (stream)
+    schema: public
+    tables:
+      - name: transactions
+        description: All transactions from both batch and stream ingestion paths
+      - name: customers
+        description: Unique customer profiles keyed on cc_num
+      - name: merchants
+        description: Unique merchant profiles keyed on merchant_name
+      - name: fraud_alerts
+        description: Real-time fraud alerts produced by Spark

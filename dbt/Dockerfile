@@ -16,5 +16,5 @@ RUN pip install --no-cache-dir \
 
 COPY . .
 
-ENTRYPOINT ["dbt"]
-CMD ["--help"]
+# No ENTRYPOINT — let docker-compose control the command
+CMD ["tail", "-f", "/dev/null"]
