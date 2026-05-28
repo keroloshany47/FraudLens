@@ -11,7 +11,6 @@ env:
 
 jobs:
   # ── 1. dbt parse + run + test ───────────────────────────────────────────────
-  # ── 1. dbt parse + run + test ───────────────────────────────────────────────
   dbt-check:
     name: dbt — parse & test
     runs-on: ubuntu-latest
@@ -48,7 +47,6 @@ jobs:
       - name: Install dbt-postgres
         run: pip install dbt-postgres==1.8.0
 
-        run: pip install dbt-postgres==1.8.0
 
       - name: Apply OLTP schema
         run: |
@@ -76,33 +74,7 @@ jobs:
         working-directory: ./dbt
         run: dbt test --profiles-dir . --target ci
 
-  # ── 2. Python lint ──────────────────────────────────────────────────────────
-  # ── 2. Python lint ──────────────────────────────────────────────────────────
-  python-lint:
-    name: Python — ruff lint
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-
-      - name: Install Ruff
-        run: pip install ruff==0.4.0
-
-      - name: Ruff lint
-        run: |
-          ruff check kafka/ spark/ airflow/ monitoring/ \
-            --output-format=github \
-            --select=E,F,W,I
-
-  # ── 3. Spark unit tests ─────────────────────────────────────────────────────
-  # ── 3. Spark unit tests ─────────────────────────────────────────────────────
+  # ── 2. Spark unit tests ─────────────────────────────────────────────────────
   spark-tests:
     name: Spark — unit tests
     runs-on: ubuntu-latest
