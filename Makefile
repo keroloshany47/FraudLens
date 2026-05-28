@@ -91,7 +91,8 @@ stream-stop: ## Stop the Kafka producer
 # ── DBT ───────────────────────────────────────────────────────
 dbt-run: ## Run all dbt models (staging → intermediate → marts)
 	@echo "$(CYAN) Running dbt models...$(RESET)"
-	docker compose --profile dbt run -d dbt
+	docker compose --profile dbt up -d dbt
+	@sleep 5
 	docker compose exec dbt dbt run --profiles-dir . --target dev --select staging+
 	@echo "$(GREEN) dbt models built$(RESET)"
 
@@ -107,7 +108,8 @@ dbt-docs: ## Generate and serve dbt docs locally (http://localhost:8083)
 	@echo "$(GREEN) dbt docs at http://localhost:8083$(RESET)"
 
 dbt-debug: ## Test dbt database connection
-	docker compose --profile dbt run -d dbt
+	docker compose --profile dbt up -d dbt
+	@sleep 5
 	docker compose exec dbt dbt debug --profiles-dir . --target dev
 
 # ── KAFKA ─────────────────────────────────────────────────────
@@ -138,9 +140,10 @@ spark-submit: ## Submit the Spark Structured Streaming job
 	 /opt/spark/bin/spark-submit \
 	 --master spark://spark-master:7077 \
 	 --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.postgresql:postgresql:42.7.3 \
+	 --conf spark.driver.extraJavaOptions="-Divy.home=/opt/spark-apps/.ivy2" \
+	 --conf spark.sql.shuffle.partitions=4 \
 	 --driver-memory 512m \
 	 --executor-memory 1g \
-	 --conf spark.sql.shuffle.partitions=4 \
 	 --py-files /opt/spark-apps/jobs/utils/geo_utils.py,/opt/spark-apps/jobs/utils/fraud_scorer.py,/opt/spark-apps/jobs/utils/dlq_handler.py \
 	 /opt/spark-apps/jobs/stream_processor.py
 
