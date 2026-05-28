@@ -6,55 +6,112 @@ on:
   push:
     branches: [main]
 
-jobs:
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+jobs:
+  # ── 1. dbt parse + run + test ───────────────────────────────────────────────
   dbt-check:
     name: dbt — parse & test
     runs-on: ubuntu-latest
+
     services:
       postgres:
         image: postgres:15.6
         env:
-          POSTGRES_USER:     fraudlens
+          POSTGRES_USER: fraudlens
           POSTGRES_PASSWORD: fraudlens_secret
-          POSTGRES_DB:       fraudlens
-        ports: ["5432:5432"]
+          POSTGRES_DB: fraudlens
+        ports:
+          - "5432:5432"
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
+
+      # dbt-utils is a dbt package (installed via `dbt deps`)
+      # NOT a pip package.
       - name: Install dbt-postgres
-        run: pip install dbt-postgres==1.8.0 dbt-utils==1.2.0
+        run: pip install dbt-postgres==1.8.0
+
       - name: Apply OLTP schema
         run: |
           PGPASSWORD=fraudlens_secret psql \
-            -h localhost -U fraudlens -d fraudlens \
+            -h localhost \
+            -U fraudlens \
+            -d fraudlens \
             -f infra/docker/postgres/init/01_schema.sql
+
+      # Install dbt packages declared in packages.yml
+      - name: dbt deps
+        working-directory: ./dbt
+        run: dbt deps --profiles-dir . --target ci
+
       - name: dbt parse
         working-directory: ./dbt
         run: dbt parse --profiles-dir . --target ci
-      - name: dbt run staging
+
+      # Run all layers so tests have relations available
+      - name: dbt run
         working-directory: ./dbt
-        run: dbt run --profiles-dir . --target ci --select staging
+        run: dbt run --profiles-dir . --target ci
+
       - name: dbt test
         working-directory: ./dbt
         run: dbt test --profiles-dir . --target ci
 
-  spark-tests:
-    name: Spark — unit tests
+  # ── 2. Python lint ──────────────────────────────────────────────────────────
+  python-lint:
+    name: Python — ruff lint
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install pytest==8.2.0 pyspark==3.5.1
-      - run: pytest spark/tests/ -v --tb=short
+
+      - name: Install Ruff
+        run: pip install ruff==0.4.0
+
+      - name: Ruff lint
+        run: |
+          ruff check kafka/ spark/ airflow/ monitoring/ \
+            --output-format=github \
+            --select=E,F,W,I
+
+  # ── 3. Spark unit tests ─────────────────────────────────────────────────────
+  spark-tests:
+    name: Spark — unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test dependencies
+        run: pip install pytest==8.2.0 pyspark==3.5.1
+
+      - name: Run Spark tests
+        run: pytest spark/tests/ -v --tb=short
