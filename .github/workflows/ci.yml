@@ -31,7 +31,10 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 43f20c87b669d685c57ae92e1f23c0ce26d3bc6f
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -74,7 +77,35 @@ jobs:
         working-directory: ./dbt
         run: dbt test --profiles-dir . --target ci
 
+<<<<<<< HEAD
   # ── 2. Spark unit tests ─────────────────────────────────────────────────────
+=======
+  # ── 2. Python lint ──────────────────────────────────────────────────────────
+  python-lint:
+    name: Python — ruff lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Ruff
+        run: pip install ruff==0.4.0
+
+      - name: Ruff lint
+        run: |
+          ruff check kafka/ spark/ airflow/ monitoring/ \
+            --output-format=github \
+            --select=E,F,W,I
+
+  # ── 3. Spark unit tests ─────────────────────────────────────────────────────
+>>>>>>> 43f20c87b669d685c57ae92e1f23c0ce26d3bc6f
   spark-tests:
     name: Spark — unit tests
     runs-on: ubuntu-latest

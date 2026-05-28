@@ -10,7 +10,7 @@ Exposes two metrics on :8000/metrics:
       Gauge — goes up when Spark drops events, should return to 0 when replayed.
 
   fraudlens_events_per_second
-      Rate of transaction events arriving in transactions_topic, measured
+      Rate of transaction events arriving in raw_transactions, measured
       over the last scrape interval. This is what the Grafana DLQ panel
       and pipeline health panel need.
 
@@ -31,7 +31,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 # ── Config (overridable via env vars) ──────────────────────────────────────────
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "kafka:9092")
 DLQ_TOPIC = os.getenv("DLQ_TOPIC", "dlq_transactions")
-TRANSACTIONS_TOPIC = os.getenv("TRANSACTIONS_TOPIC", "transactions_topic")
+TRANSACTIONS_TOPIC = os.getenv("TRANSACTIONS_TOPIC", "raw_transactions")
 SCRAPE_INTERVAL_SECS = int(os.getenv("SCRAPE_INTERVAL", "15"))
 EXPORTER_PORT = int(os.getenv("EXPORTER_PORT", "8000"))
 
@@ -49,20 +49,22 @@ EVENTS_PER_SECOND = Gauge(
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 
-def _get_end_offset(consumer: KafkaConsumer, topic: str) -> int:
-    """Return the latest (end) offset for partition 0 of a topic."""
-    tp = TopicPartition(topic, 0)
-    consumer.assign([tp])
-    consumer.seek_to_end(tp)
-    return consumer.position(tp)
+def _get_total_end_offset(consumer: KafkaConsumer, topic: str) -> int:
+    """Return the sum of latest (end) offsets across all partitions of a topic."""
+    partition_ids = consumer.partitions_for_topic(topic) or {0}
+    tps = [TopicPartition(topic, p) for p in sorted(partition_ids)]
+    consumer.assign(tps)
+    consumer.seek_to_end(*tps)
+    return sum(consumer.position(tp) for tp in tps)
 
 
-def _get_begin_offset(consumer: KafkaConsumer, topic: str) -> int:
-    """Return the earliest (begin) offset for partition 0 of a topic."""
-    tp = TopicPartition(topic, 0)
-    consumer.assign([tp])
-    consumer.seek_to_beginning(tp)
-    return consumer.position(tp)
+def _get_total_begin_offset(consumer: KafkaConsumer, topic: str) -> int:
+    """Return the sum of earliest (begin) offsets across all partitions of a topic."""
+    partition_ids = consumer.partitions_for_topic(topic) or {0}
+    tps = [TopicPartition(topic, p) for p in sorted(partition_ids)]
+    consumer.assign(tps)
+    consumer.seek_to_beginning(*tps)
+    return sum(consumer.position(tp) for tp in tps)
 
 
 def collect_metrics(prev_txn_offset: int, prev_time: float) -> tuple[int, float]:
@@ -86,15 +88,15 @@ def collect_metrics(prev_txn_offset: int, prev_time: float) -> tuple[int, float]
 
     try:
         # ── DLQ depth ────────────────────────────────────────────────────────
-        dlq_end = _get_end_offset(consumer, DLQ_TOPIC)
-        dlq_begin = _get_begin_offset(consumer, DLQ_TOPIC)
+        dlq_end = _get_total_end_offset(consumer, DLQ_TOPIC)
+        dlq_begin = _get_total_begin_offset(consumer, DLQ_TOPIC)
         depth = dlq_end - dlq_begin
         DLQ_DEPTH.set(depth)
         log.info("dlq_depth=%d (begin=%d end=%d)", depth, dlq_begin, dlq_end)
 
         # ── Events per second ─────────────────────────────────────────────────
         now = time.monotonic()
-        txn_end = _get_end_offset(consumer, TRANSACTIONS_TOPIC)
+        txn_end = _get_total_end_offset(consumer, TRANSACTIONS_TOPIC)
         elapsed = now - prev_time
         delta_msgs = txn_end - prev_txn_offset
 
