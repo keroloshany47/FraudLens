@@ -24,6 +24,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
     AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 30
+    _PIP_ADDITIONAL_REQUIREMENTS: "kafka-python==2.0.2 psycopg2-binary==2.9.9"
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/logs:/opt/airflow/logs
@@ -210,8 +211,6 @@ services:
         limits:
           memory: 2500m
     restart: unless-stopped
-    environment:
-      PIP_ADDITIONAL_REQUIREMENTS: "kafka-python==2.0.2 psycopg2-binary==2.9.9"
 
   # ── 8. AIRFLOW — Webserver ────────────────────────────────────
   airflow-webserver:
@@ -231,8 +230,6 @@ services:
         limits:
           memory: 700m
     restart: unless-stopped
-    environment:
-      PIP_ADDITIONAL_REQUIREMENTS: "kafka-python==2.0.2 psycopg2-binary==2.9.9"
 
   # ── 9. DBT ────────────────────────────────────────────────────
   dbt:

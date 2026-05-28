@@ -52,7 +52,7 @@ def dag_dlq_monitor():
         The difference is how many messages exist but have never been consumed —
         i.e. events that Spark's DLQ handler wrote but nobody has read.
 
-        Returns -1 if Kafka is unreachable (triggers a retry, not an alert).
+        Raises NoBrokersAvailable if Kafka is unreachable (triggers Airflow retry).
         """
         try:
             from kafka import KafkaConsumer, TopicPartition
@@ -74,10 +74,10 @@ def dag_dlq_monitor():
         except NoBrokersAvailable:
             log.warning(
                 "[DLQ Monitor] Kafka broker not reachable at %s — "
-                "will retry next scheduled run.",
+                "raising exception so Airflow can retry.",
                 KAFKA_BOOTSTRAP,
             )
-            return -1  # TaskFlow propagates -1 to branch; branch treats it as no-alert
+            raise
 
         tp = TopicPartition(DLQ_TOPIC, 0)  # DLQ has 1 partition
         consumer.assign([tp])
