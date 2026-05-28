@@ -31,7 +31,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 # ── Config (overridable via env vars) ──────────────────────────────────────────
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "kafka:9092")
 DLQ_TOPIC = os.getenv("DLQ_TOPIC", "dlq_transactions")
-TRANSACTIONS_TOPIC = os.getenv("TRANSACTIONS_TOPIC", "transactions_topic")
+TRANSACTIONS_TOPIC = os.getenv("TRANSACTIONS_TOPIC", "raw_transactions")
 SCRAPE_INTERVAL_SECS = int(os.getenv("SCRAPE_INTERVAL", "15"))
 EXPORTER_PORT = int(os.getenv("EXPORTER_PORT", "8000"))
 
