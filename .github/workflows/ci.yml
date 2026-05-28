@@ -6,6 +6,9 @@ on:
   push:
     branches: [main]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # ── 1. dbt parse + run + test ───────────────────────────────────────────────
   dbt-check:
@@ -16,10 +19,11 @@ jobs:
       postgres:
         image: postgres:15.6
         env:
-          POSTGRES_USER:     fraudlens
+          POSTGRES_USER: fraudlens
           POSTGRES_PASSWORD: fraudlens_secret
-          POSTGRES_DB:       fraudlens
-        ports: ["5432:5432"]
+          POSTGRES_DB: fraudlens
+        ports:
+          - "5432:5432"
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -27,26 +31,29 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
 
-      # dbt-utils is a dbt package (installed via `dbt deps`), NOT a pip package.
-      # Listing it in pip install does nothing — only dbt-postgres is needed here.
+      # dbt-utils is a dbt package (installed via `dbt deps`)
+      # NOT a pip package.
       - name: Install dbt-postgres
         run: pip install dbt-postgres==1.8.0
 
       - name: Apply OLTP schema
         run: |
           PGPASSWORD=fraudlens_secret psql \
-            -h localhost -U fraudlens -d fraudlens \
+            -h localhost \
+            -U fraudlens \
+            -d fraudlens \
             -f infra/docker/postgres/init/01_schema.sql
 
-      # Install dbt packages (dbt_utils) declared in packages.yml.
-      # Must run before `dbt parse` — otherwise dbt can't resolve the macros.
+      # Install dbt packages declared in packages.yml
       - name: dbt deps
         working-directory: ./dbt
         run: dbt deps --profiles-dir . --target ci
@@ -55,14 +62,12 @@ jobs:
         working-directory: ./dbt
         run: dbt parse --profiles-dir . --target ci
 
-      # Run ALL layers so every test has data to validate against.
-      # Running only `staging` and then `dbt test` (all) would make mart/
-      # intermediate tests fail with "relation does not exist".
-      - name: dbt run (all models)
+      # Run all layers so tests have relations available
+      - name: dbt run
         working-directory: ./dbt
         run: dbt run --profiles-dir . --target ci
 
-      - name: dbt test (all 54 tests)
+      - name: dbt test
         working-directory: ./dbt
         run: dbt test --profiles-dir . --target ci
 
@@ -70,28 +75,43 @@ jobs:
   python-lint:
     name: Python — ruff lint
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
 
-      - run: pip install ruff==0.4.0
-      - run: ruff check kafka/ spark/ airflow/ --output-format=github --select=E,F,W,I
+      - name: Install Ruff
+        run: pip install ruff==0.4.0
+
+      - name: Ruff lint
+        run: |
+          ruff check kafka/ spark/ airflow/ monitoring/ \
+            --output-format=github \
+            --select=E,F,W,I
 
   # ── 3. Spark unit tests ─────────────────────────────────────────────────────
   spark-tests:
     name: Spark — unit tests
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
 
-      - run: pip install pytest==8.2.0 pyspark==3.5.1
-      - run: pytest spark/tests/ -v --tb=short
+      - name: Install test dependencies
+        run: pip install pytest==8.2.0 pyspark==3.5.1
+
+      - name: Run Spark tests
+        run: pytest spark/tests/ -v --tb=short
