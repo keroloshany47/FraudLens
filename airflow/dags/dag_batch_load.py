@@ -11,13 +11,13 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 log = logging.getLogger("fraudlens.dag_batch_load")
 
 DB_CONFIG = {
-    "host":     os.getenv("POSTGRES_HOST",     "postgres"),
-    "port":     int(os.getenv("POSTGRES_PORT", "5432")),
-    "dbname":   os.getenv("POSTGRES_DB",       "fraudlens"),
-    "user":     os.getenv("POSTGRES_USER",     "fraudlens"),
+    "host": os.getenv("POSTGRES_HOST", "postgres"),
+    "port": int(os.getenv("POSTGRES_PORT", "5432")),
+    "dbname": os.getenv("POSTGRES_DB", "fraudlens"),
+    "user": os.getenv("POSTGRES_USER", "fraudlens"),
     "password": os.getenv("POSTGRES_PASSWORD", "fraudlens_secret"),
 }
-DATA_PATH  = "/opt/airflow/data/raw/fraudTrain.csv"
+DATA_PATH = "/opt/airflow/data/raw/fraudTrain.csv"
 CHUNK_SIZE = 10_000
 
 
@@ -60,9 +60,21 @@ def dag_batch_load():
 
         for chunk in pd.read_csv(
             DATA_PATH,
-            usecols=["cc_num","first","last","gender","dob",
-                     "job","street","city","state","zip",
-                     "lat","long","city_pop"],
+            usecols=[
+                "cc_num",
+                "first",
+                "last",
+                "gender",
+                "dob",
+                "job",
+                "street",
+                "city",
+                "state",
+                "zip",
+                "lat",
+                "long",
+                "city_pop",
+            ],
             chunksize=CHUNK_SIZE,
             dtype={"zip": str},
         ):
@@ -70,9 +82,19 @@ def dag_batch_load():
             chunk = chunk.rename(columns={"long": "longitude"})
             rows = [
                 (
-                    int(r.cc_num), r.first, r.last, r.gender, str(r.dob),
-                    r.job, r.street, r.city, r.state, str(r.zip),
-                    float(r.lat), float(r.longitude), int(r.city_pop),
+                    int(r.cc_num),
+                    r.first,
+                    r.last,
+                    r.gender,
+                    str(r.dob),
+                    r.job,
+                    r.street,
+                    r.city,
+                    r.state,
+                    str(r.zip),
+                    float(r.lat),
+                    float(r.longitude),
+                    int(r.city_pop),
                 )
                 for r in chunk.itertuples(index=False)
             ]
@@ -107,13 +129,15 @@ def dag_batch_load():
 
         for chunk in pd.read_csv(
             DATA_PATH,
-            usecols=["merchant","category","merch_lat","merch_long"],
+            usecols=["merchant", "category", "merch_lat", "merch_long"],
             chunksize=CHUNK_SIZE,
         ):
             rows = [
                 (
-                    r.merchant, r.category,
-                    float(r.merch_lat), float(r.merch_long),
+                    r.merchant,
+                    r.category,
+                    float(r.merch_lat),
+                    float(r.merch_long),
                 )
                 for r in chunk.itertuples(index=False)
             ]
@@ -145,8 +169,11 @@ def dag_batch_load():
                 cur.execute("SELECT merchant_name, merchant_id FROM merchants")
                 merch_map = {row[0]: row[1] for row in cur.fetchall()}
 
-        log.info("Loaded %s customer keys, %s merchant keys",
-                 f"{len(cc_map):,}", f"{len(merch_map):,}")
+        log.info(
+            "Loaded %s customer keys, %s merchant keys",
+            f"{len(cc_map):,}",
+            f"{len(merch_map):,}",
+        )
 
         sql = """
             INSERT INTO transactions
@@ -160,8 +187,15 @@ def dag_batch_load():
 
         for chunk in pd.read_csv(
             DATA_PATH,
-            usecols=["trans_num","trans_date_trans_time","unix_time",
-                     "amt","is_fraud","cc_num","merchant"],
+            usecols=[
+                "trans_num",
+                "trans_date_trans_time",
+                "unix_time",
+                "amt",
+                "is_fraud",
+                "cc_num",
+                "merchant",
+            ],
             parse_dates=["trans_date_trans_time"],
             chunksize=CHUNK_SIZE,
         ):
@@ -172,24 +206,28 @@ def dag_batch_load():
                 mid = merch_map.get(r.merchant)
                 if cid is None or mid is None:
                     continue
-                rows.append((
-                    r.trans_num, cid, mid,
-                    r.trans_date_trans_time,
-                    int(r.unix_time), float(r.amt),
-                    int(r.is_fraud), "batch",
-                ))
+                rows.append(
+                    (
+                        r.trans_num,
+                        cid,
+                        mid,
+                        r.trans_date_trans_time,
+                        int(r.unix_time),
+                        float(r.amt),
+                        int(r.is_fraud),
+                        "batch",
+                    )
+                )
 
             if rows:
                 with get_conn() as conn:
                     with conn.cursor() as cur:
-                        psycopg2.extras.execute_values(
-                            cur, sql, rows, page_size=2000)
+                        psycopg2.extras.execute_values(cur, sql, rows, page_size=2000)
                     conn.commit()
 
             total += len(rows)
             if chunk_num % 20 == 0:
-                log.info("Chunk %d done — total so far: %s",
-                         chunk_num, f"{total:,}")
+                log.info("Chunk %d done — total so far: %s", chunk_num, f"{total:,}")
 
         log.info("Batch load complete — %s transactions", f"{total:,}")
         return total
@@ -201,9 +239,9 @@ def dag_batch_load():
         reset_dag_run=True,
     )
 
-    customers  = load_customers()
-    merchants  = load_merchants()
-    txns       = load_transactions()
+    customers = load_customers()
+    merchants = load_merchants()
+    txns = load_transactions()
 
     customers >> merchants >> txns >> trigger_dbt
 

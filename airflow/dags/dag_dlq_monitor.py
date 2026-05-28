@@ -21,10 +21,10 @@ from airflow.operators.empty import EmptyOperator
 
 log = logging.getLogger("fraudlens.dag_dlq_monitor")
 
-KAFKA_BOOTSTRAP  = "kafka:9092"
-DLQ_TOPIC        = "dlq_transactions"
-ALERT_THRESHOLD  = 0          # alert if ANY message sits in DLQ
-KAFKA_TIMEOUT_MS = 10_000     # 10 s — don't hang forever if broker is down
+KAFKA_BOOTSTRAP = "kafka:9092"
+DLQ_TOPIC = "dlq_transactions"
+ALERT_THRESHOLD = 0  # alert if ANY message sits in DLQ
+KAFKA_TIMEOUT_MS = 10_000  # 10 s — don't hang forever if broker is down
 
 
 @dag(
@@ -77,9 +77,9 @@ def dag_dlq_monitor():
                 "will retry next scheduled run.",
                 KAFKA_BOOTSTRAP,
             )
-            return -1   # TaskFlow propagates -1 to branch; branch treats it as no-alert
+            return -1  # TaskFlow propagates -1 to branch; branch treats it as no-alert
 
-        tp = TopicPartition(DLQ_TOPIC, 0)   # DLQ has 1 partition
+        tp = TopicPartition(DLQ_TOPIC, 0)  # DLQ has 1 partition
         consumer.assign([tp])
 
         consumer.seek_to_end(tp)
@@ -91,8 +91,13 @@ def dag_dlq_monitor():
         consumer.close()
 
         depth = end_offset - begin_offset
-        log.info("[DLQ Monitor] topic=%s  begin=%d  end=%d  depth=%d",
-                 DLQ_TOPIC, begin_offset, end_offset, depth)
+        log.info(
+            "[DLQ Monitor] topic=%s  begin=%d  end=%d  depth=%d",
+            DLQ_TOPIC,
+            begin_offset,
+            end_offset,
+            depth,
+        )
         return depth
 
     @task.branch()
@@ -118,7 +123,8 @@ def dag_dlq_monitor():
             "Spark stream processor may be dropping events. "
             "Inspect with:  docker compose logs spark-worker  "
             "or:            make dlq-check",
-            depth, DLQ_TOPIC,
+            depth,
+            DLQ_TOPIC,
         )
 
         # ── uncomment for a real Slack alert ─────────────────────────────────
@@ -138,9 +144,9 @@ def dag_dlq_monitor():
     # TaskFlow passes return values as arguments automatically.
     # route_on_depth receives `depth` from get_dlq_depth.
     # alert_team receives `depth` from get_dlq_depth (not the branch).
-    depth_val  = get_dlq_depth()
-    branch     = route_on_depth(depth_val)
-    alert      = alert_team(depth_val)
+    depth_val = get_dlq_depth()
+    branch = route_on_depth(depth_val)
+    alert = alert_team(depth_val)
 
     branch >> [alert, no_action]
 

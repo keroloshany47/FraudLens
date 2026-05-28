@@ -23,17 +23,17 @@ import time
 import logging
 from kafka import KafkaConsumer, TopicPartition
 from kafka.errors import NoBrokersAvailable
-from prometheus_client import start_http_server, Gauge, REGISTRY, PROCESS_COLLECTOR, PLATFORM_COLLECTOR
+from prometheus_client import Gauge, start_http_server
 
 log = logging.getLogger("fraudlens_exporter")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 # ── Config (overridable via env vars) ──────────────────────────────────────────
-KAFKA_BOOTSTRAP      = os.getenv("KAFKA_BOOTSTRAP",      "kafka:9092")
-DLQ_TOPIC            = os.getenv("DLQ_TOPIC",            "dlq_transactions")
-TRANSACTIONS_TOPIC   = os.getenv("TRANSACTIONS_TOPIC",   "transactions_topic")
-SCRAPE_INTERVAL_SECS = int(os.getenv("SCRAPE_INTERVAL",  "15"))
-EXPORTER_PORT        = int(os.getenv("EXPORTER_PORT",    "8000"))
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "kafka:9092")
+DLQ_TOPIC = os.getenv("DLQ_TOPIC", "dlq_transactions")
+TRANSACTIONS_TOPIC = os.getenv("TRANSACTIONS_TOPIC", "transactions_topic")
+SCRAPE_INTERVAL_SECS = int(os.getenv("SCRAPE_INTERVAL", "15"))
+EXPORTER_PORT = int(os.getenv("EXPORTER_PORT", "8000"))
 
 # ── Metrics ────────────────────────────────────────────────────────────────────
 DLQ_DEPTH = Gauge(
@@ -47,6 +47,7 @@ EVENTS_PER_SECOND = Gauge(
 )
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
 
 def _get_end_offset(consumer: KafkaConsumer, topic: str) -> int:
     """Return the latest (end) offset for partition 0 of a topic."""
@@ -75,30 +76,37 @@ def collect_metrics(prev_txn_offset: int, prev_time: float) -> tuple[int, float]
         consumer = KafkaConsumer(
             bootstrap_servers=KAFKA_BOOTSTRAP,
             request_timeout_ms=8_000,
-            group_id=None,   # observer only — don't commit offsets
+            group_id=None,  # observer only — don't commit offsets
         )
     except NoBrokersAvailable:
-        log.warning("Kafka broker not reachable at %s — skipping scrape", KAFKA_BOOTSTRAP)
+        log.warning(
+            "Kafka broker not reachable at %s — skipping scrape", KAFKA_BOOTSTRAP
+        )
         return prev_txn_offset, prev_time
 
     try:
         # ── DLQ depth ────────────────────────────────────────────────────────
-        dlq_end   = _get_end_offset(consumer, DLQ_TOPIC)
+        dlq_end = _get_end_offset(consumer, DLQ_TOPIC)
         dlq_begin = _get_begin_offset(consumer, DLQ_TOPIC)
         depth = dlq_end - dlq_begin
         DLQ_DEPTH.set(depth)
         log.info("dlq_depth=%d (begin=%d end=%d)", depth, dlq_begin, dlq_end)
 
         # ── Events per second ─────────────────────────────────────────────────
-        now             = time.monotonic()
-        txn_end         = _get_end_offset(consumer, TRANSACTIONS_TOPIC)
-        elapsed         = now - prev_time
-        delta_msgs      = txn_end - prev_txn_offset
+        now = time.monotonic()
+        txn_end = _get_end_offset(consumer, TRANSACTIONS_TOPIC)
+        elapsed = now - prev_time
+        delta_msgs = txn_end - prev_txn_offset
 
         if elapsed > 0 and prev_txn_offset >= 0:
             rate = delta_msgs / elapsed
             EVENTS_PER_SECOND.set(rate)
-            log.info("events_per_second=%.2f (delta=%d msgs in %.1fs)", rate, delta_msgs, elapsed)
+            log.info(
+                "events_per_second=%.2f (delta=%d msgs in %.1fs)",
+                rate,
+                delta_msgs,
+                elapsed,
+            )
         else:
             EVENTS_PER_SECOND.set(0)
 
@@ -110,16 +118,21 @@ def collect_metrics(prev_txn_offset: int, prev_time: float) -> tuple[int, float]
 
 # ── Main loop ──────────────────────────────────────────────────────────────────
 
+
 def main():
     log.info("Starting FraudLens Prometheus exporter on :%d", EXPORTER_PORT)
-    log.info("Kafka: %s | DLQ topic: %s | txn topic: %s",
-             KAFKA_BOOTSTRAP, DLQ_TOPIC, TRANSACTIONS_TOPIC)
+    log.info(
+        "Kafka: %s | DLQ topic: %s | txn topic: %s",
+        KAFKA_BOOTSTRAP,
+        DLQ_TOPIC,
+        TRANSACTIONS_TOPIC,
+    )
 
     start_http_server(EXPORTER_PORT)
     log.info("Metrics available at http://localhost:%d/metrics", EXPORTER_PORT)
 
-    prev_txn_offset = -1   # -1 signals "no previous reading yet"
-    prev_time       = time.monotonic()
+    prev_txn_offset = -1  # -1 signals "no previous reading yet"
+    prev_time = time.monotonic()
 
     while True:
         prev_txn_offset, prev_time = collect_metrics(prev_txn_offset, prev_time)
