@@ -1,2 +1,9 @@
-kafka-python==2.3.1
-dbt-postgres==1.7.17
+# Airflow extra dependencies for FraudLens
+# Installed into the Airflow container at startup via the _PIP_ADDITIONAL_REQUIREMENTS
+# env var in docker-compose.yml (or baked into a custom Airflow image).
+
+# Required by dag_dlq_monitor.py — KafkaConsumer / TopicPartition API
+kafka-python==2.0.2
+
+# Required by dag_batch_load.py — psycopg2 for direct PostgreSQL writes
+psycopg2-binary==2.9.9

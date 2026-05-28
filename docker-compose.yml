@@ -210,6 +210,8 @@ services:
         limits:
           memory: 2500m
     restart: unless-stopped
+    environment:
+      PIP_ADDITIONAL_REQUIREMENTS: "kafka-python==2.0.2 psycopg2-binary==2.9.9"
 
   # ── 8. AIRFLOW — Webserver ────────────────────────────────────
   airflow-webserver:
@@ -229,6 +231,8 @@ services:
         limits:
           memory: 700m
     restart: unless-stopped
+    environment:
+      PIP_ADDITIONAL_REQUIREMENTS: "kafka-python==2.0.2 psycopg2-binary==2.9.9"
 
   # ── 9. DBT ────────────────────────────────────────────────────
   dbt:
@@ -315,7 +319,20 @@ services:
           memory: 300m
     networks:
       - fraudlens-network
-
+   # ─────────────────────────────────────────────────────   
+  fraudlens-exporter:
+    build:
+      context: ./monitoring/exporter
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      KAFKA_BOOTSTRAP: "kafka:9092"
+    depends_on:
+      - kafka
+    networks:
+      - fraudlens-network
+    restart: unless-stopped
 # ── VOLUMES ───────────────────────────────────────────────────
 volumes:
   postgres_data:

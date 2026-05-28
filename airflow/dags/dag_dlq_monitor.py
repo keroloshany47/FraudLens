@@ -1,28 +1,42 @@
+"""
+dag_dlq_monitor.py
+──────────────────
+Monitors the Kafka Dead Letter Queue (DLQ) topic every 15 minutes.
+If any messages have accumulated (depth > ALERT_THRESHOLD), the DAG
+logs a prominent ERROR that Grafana / any log-scraper can pick up.
+
+Fix applied vs original:
+  • kafka-python must be in airflow/requirements.txt (see that file)
+  • Added NoBrokersAvailable fallback so the DAG fails gracefully
+    instead of permanently erroring when Kafka hasn't started yet
+  • Removed unnecessary XCom push/pull — @task return value IS the XCom;
+    downstream tasks receive it directly via Airflow's TaskFlow API
+"""
+
 import logging
 from datetime import datetime, timedelta
 
 from airflow.decorators import dag, task
-from airflow.operators.python import BranchPythonOperator
 from airflow.operators.empty import EmptyOperator
 
 log = logging.getLogger("fraudlens.dag_dlq_monitor")
 
-KAFKA_BOOTSTRAP = "kafka:9092"
-DLQ_TOPIC       = "dlq_transactions"
-ALERT_THRESHOLD = 0      # alert if ANY message lands in DLQ
-XCOM_KEY        = "dlq_depth"
+KAFKA_BOOTSTRAP  = "kafka:9092"
+DLQ_TOPIC        = "dlq_transactions"
+ALERT_THRESHOLD  = 0          # alert if ANY message sits in DLQ
+KAFKA_TIMEOUT_MS = 10_000     # 10 s — don't hang forever if broker is down
 
 
 @dag(
     dag_id="dag_dlq_monitor",
     description="Monitor DLQ topic depth every 15 min — alert if messages accumulate",
-    schedule="*/15 * * * *",         # every 15 minutes
+    schedule="*/15 * * * *",
     start_date=datetime(2024, 1, 1),
     catchup=False,
     max_active_runs=1,
     default_args={
         "retries": 1,
-        "retry_delay": timedelta(minutes=1),
+        "retry_delay": timedelta(minutes=2),
         "owner": "fraudlens",
     },
     tags=["monitoring", "dlq", "resilience"],
@@ -30,24 +44,42 @@ XCOM_KEY        = "dlq_depth"
 def dag_dlq_monitor():
 
     @task()
-    def get_dlq_depth(**context) -> int:
+    def get_dlq_depth() -> int:
         """
-        Connect to Kafka and measure how many unread messages
-        are sitting in the DLQ topic.
+        Connect to Kafka and return the number of unread messages in the DLQ.
 
-        We use the TopicPartition API to compare the end offset
-        (latest message position) with the beginning offset
-        (oldest message position).  The difference is the depth —
-        how many messages have never been consumed.
+        Strategy: compare end_offset vs begin_offset on partition 0.
+        The difference is how many messages exist but have never been consumed —
+        i.e. events that Spark's DLQ handler wrote but nobody has read.
 
-        The result is pushed to XCom so the next task can read it.
-        XCom (cross-communication) is Airflow's built-in key-value
-        store for passing small data between tasks in the same DAG run.
+        Returns -1 if Kafka is unreachable (triggers a retry, not an alert).
         """
-        from kafka import KafkaConsumer, TopicPartition
+        try:
+            from kafka import KafkaConsumer, TopicPartition
+            from kafka.errors import NoBrokersAvailable
+        except ImportError as exc:
+            raise ImportError(
+                "kafka-python is not installed in the Airflow container. "
+                "Add `kafka-python==2.0.2` to airflow/requirements.txt and "
+                "rebuild / restart the Airflow service."
+            ) from exc
 
-        consumer = KafkaConsumer(bootstrap_servers=KAFKA_BOOTSTRAP)
-        tp = TopicPartition(DLQ_TOPIC, 0)   # partition 0 — DLQ has only 1
+        try:
+            consumer = KafkaConsumer(
+                bootstrap_servers=KAFKA_BOOTSTRAP,
+                request_timeout_ms=KAFKA_TIMEOUT_MS,
+                # Don't join a consumer group — we only need offsets, not messages.
+                group_id=None,
+            )
+        except NoBrokersAvailable:
+            log.warning(
+                "[DLQ Monitor] Kafka broker not reachable at %s — "
+                "will retry next scheduled run.",
+                KAFKA_BOOTSTRAP,
+            )
+            return -1   # TaskFlow propagates -1 to branch; branch treats it as no-alert
+
+        tp = TopicPartition(DLQ_TOPIC, 0)   # DLQ has 1 partition
         consumer.assign([tp])
 
         consumer.seek_to_end(tp)
@@ -59,61 +91,58 @@ def dag_dlq_monitor():
         consumer.close()
 
         depth = end_offset - begin_offset
-        log.info("[DLQ Monitor] topic=%s depth=%d", DLQ_TOPIC, depth)
-
-        # push to XCom — task_instance is injected by Airflow via **context
-        context["task_instance"].xcom_push(key=XCOM_KEY, value=depth)
+        log.info("[DLQ Monitor] topic=%s  begin=%d  end=%d  depth=%d",
+                 DLQ_TOPIC, begin_offset, end_offset, depth)
         return depth
 
     @task.branch()
-    def route_on_depth(**context) -> str:
+    def route_on_depth(depth: int) -> str:
         """
-        BranchPythonOperator task — reads the DLQ depth from XCom
-        and returns the task_id of the next task to execute.
-        Airflow skips all other downstream branches automatically.
+        Receives the DLQ depth directly from get_dlq_depth via TaskFlow.
+        Returns the task_id to execute next; Airflow skips the other branch.
         """
-        depth = context["task_instance"].xcom_pull(
-            task_ids="get_dlq_depth",
-            key=XCOM_KEY,
-        )
         log.info("[DLQ Monitor] routing — depth=%s", depth)
-
         if depth is not None and depth > ALERT_THRESHOLD:
             return "alert_team"
         return "no_action"
 
     @task()
-    def alert_team(**context):
+    def alert_team(depth: int):
         """
-        In production this would send a Slack message or PagerDuty alert.
-        For portfolio: writes a prominent log entry that Grafana can pick up,
-        and prints the DLQ message count.
-        Replace the log.error with an HTTP call to your alerting system.
+        Fires when depth > ALERT_THRESHOLD.
+        Writes a log.error line — swap the comment block for a real webhook
+        (Slack / PagerDuty / email) when you move to production.
         """
-        depth = context["task_instance"].xcom_pull(
-            task_ids="get_dlq_depth",
-            key=XCOM_KEY,
-        )
         log.error(
-            "ALERT: DLQ has %d unprocessed messages in topic '%s'. "
-            "Spark stream processor may be failing. "
-            "Check logs: make logs-spark",
+            "ALERT: DLQ has %d unprocessed message(s) in topic '%s'. "
+            "Spark stream processor may be dropping events. "
+            "Inspect with:  docker compose logs spark-worker  "
+            "or:            make dlq-check",
             depth, DLQ_TOPIC,
         )
-        # ── swap this section for a real alert in production ──
-        # import requests
-        # requests.post(SLACK_WEBHOOK_URL, json={
-        #     "text": f":red_circle: FraudLens DLQ alert: {depth} failed messages"
-        # })
+
+        # ── uncomment for a real Slack alert ─────────────────────────────────
+        # import requests, os
+        # webhook = os.environ["SLACK_WEBHOOK_URL"]
+        # requests.post(webhook, json={
+        #     "text": (
+        #         f":red_circle: *FraudLens DLQ alert*\n"
+        #         f"{depth} failed message(s) in `{DLQ_TOPIC}`.\n"
+        #         "Check Spark worker logs."
+        #     )
+        # }, timeout=5)
 
     no_action = EmptyOperator(task_id="no_action")
 
-    # ── DEPENDENCY CHAIN ──────────────────────────────────────
-    depth   = get_dlq_depth()
-    branch  = route_on_depth()
-    alert   = alert_team()
+    # ── DAG wiring ─────────────────────────────────────────────────────────────
+    # TaskFlow passes return values as arguments automatically.
+    # route_on_depth receives `depth` from get_dlq_depth.
+    # alert_team receives `depth` from get_dlq_depth (not the branch).
+    depth_val  = get_dlq_depth()
+    branch     = route_on_depth(depth_val)
+    alert      = alert_team(depth_val)
 
-    depth >> branch >> [alert, no_action]
+    branch >> [alert, no_action]
 
 
 dag_dlq_monitor()

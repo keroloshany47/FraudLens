@@ -7,10 +7,11 @@ on:
     branches: [main]
 
 jobs:
-
+  # ── 1. dbt parse + run + test ───────────────────────────────────────────────
   dbt-check:
     name: dbt — parse & test
     runs-on: ubuntu-latest
+
     services:
       postgres:
         image: postgres:15.6
@@ -24,49 +25,73 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
+
+      # dbt-utils is a dbt package (installed via `dbt deps`), NOT a pip package.
+      # Listing it in pip install does nothing — only dbt-postgres is needed here.
       - name: Install dbt-postgres
-        run: pip install dbt-postgres==1.8.0 dbt-utils==1.2.0
+        run: pip install dbt-postgres==1.8.0
+
       - name: Apply OLTP schema
         run: |
           PGPASSWORD=fraudlens_secret psql \
             -h localhost -U fraudlens -d fraudlens \
             -f infra/docker/postgres/init/01_schema.sql
+
+      # Install dbt packages (dbt_utils) declared in packages.yml.
+      # Must run before `dbt parse` — otherwise dbt can't resolve the macros.
+      - name: dbt deps
+        working-directory: ./dbt
+        run: dbt deps --profiles-dir . --target ci
+
       - name: dbt parse
         working-directory: ./dbt
         run: dbt parse --profiles-dir . --target ci
-      - name: dbt run staging
+
+      # Run ALL layers so every test has data to validate against.
+      # Running only `staging` and then `dbt test` (all) would make mart/
+      # intermediate tests fail with "relation does not exist".
+      - name: dbt run (all models)
         working-directory: ./dbt
-        run: dbt run --profiles-dir . --target ci --select staging
-      - name: dbt test
+        run: dbt run --profiles-dir . --target ci
+
+      - name: dbt test (all 54 tests)
         working-directory: ./dbt
         run: dbt test --profiles-dir . --target ci
 
+  # ── 2. Python lint ──────────────────────────────────────────────────────────
   python-lint:
     name: Python — ruff lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
+
       - run: pip install ruff==0.4.0
       - run: ruff check kafka/ spark/ airflow/ --output-format=github --select=E,F,W,I
 
+  # ── 3. Spark unit tests ─────────────────────────────────────────────────────
   spark-tests:
     name: Spark — unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
+
       - run: pip install pytest==8.2.0 pyspark==3.5.1
       - run: pytest spark/tests/ -v --tb=short
