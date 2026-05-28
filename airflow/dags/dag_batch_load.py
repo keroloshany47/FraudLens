@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -84,7 +84,10 @@ def dag_batch_load():
                     conn.commit()
                 total += len(rows)
 
-        log.info("Loaded customers — %s rows attempted (dupes skipped by DB)", f"{total:,}")
+        log.info(
+            "Loaded customers — %s rows attempted (dupes skipped by DB)",
+            f"{total:,}",
+        )
         return total
 
     @task()
@@ -122,7 +125,10 @@ def dag_batch_load():
                     conn.commit()
                 total += len(rows)
 
-        log.info("Loaded merchants — %s rows attempted (dupes skipped by DB)", f"{total:,}")
+        log.info(
+            "Loaded merchants — %s rows attempted (dupes skipped by DB)",
+            f"{total:,}",
+        )
         return total
 
     @task()
