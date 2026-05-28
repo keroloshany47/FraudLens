@@ -4,13 +4,7 @@ dag_dlq_monitor.py
 Monitors the Kafka Dead Letter Queue (DLQ) topic every 15 minutes.
 If any messages have accumulated (depth > ALERT_THRESHOLD), the DAG
 logs a prominent ERROR that Grafana / any log-scraper can pick up.
-
-Fix applied vs original:
-  • kafka-python must be in airflow/requirements.txt (see that file)
-  • Added NoBrokersAvailable fallback so the DAG fails gracefully
-    instead of permanently erroring when Kafka hasn't started yet
-  • Removed unnecessary XCom push/pull — @task return value IS the XCom;
-    downstream tasks receive it directly via Airflow's TaskFlow API
+This DAG uses the TaskFlow API to pass the DLQ depth value between tasks.
 """
 
 import logging
