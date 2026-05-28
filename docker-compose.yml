@@ -48,6 +48,8 @@ services:
     ports:
       - "9092:9092"
       - "9101:9101"   # JMX for Prometheus
+    volumes:
+      - kafka_data:/var/lib/kafka/data
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -109,6 +111,9 @@ services:
     environment:
       SPARK_NO_DAEMONIZE: "true"
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    volumes:
+      - ./spark:/opt/spark-apps
+      - ./data:/data
     deploy:
       resources:
         limits:
@@ -316,6 +321,7 @@ volumes:
   postgres_data:
   prometheus_data:
   grafana_data:
+  kafka_data:
 
 # ── NETWORK ───────────────────────────────────────────────────
 networks:

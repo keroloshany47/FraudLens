@@ -135,12 +135,13 @@ dlq-check: ## Show messages in the Dead Letter Queue topic
 spark-submit: ## Submit the Spark Structured Streaming job
 	@echo "$(CYAN) Submitting Spark streaming job...$(RESET)"
 	docker compose exec spark-master \
-	 spark-submit \
+	 /opt/spark/bin/spark-submit \
 	 --master spark://spark-master:7077 \
 	 --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.postgresql:postgresql:42.7.3 \
 	 --driver-memory 512m \
 	 --executor-memory 1g \
 	 --conf spark.sql.shuffle.partitions=4 \
+	 --py-files /opt/spark-apps/jobs/utils/geo_utils.py,/opt/spark-apps/jobs/utils/fraud_scorer.py,/opt/spark-apps/jobs/utils/dlq_handler.py \
 	 /opt/spark-apps/jobs/stream_processor.py
 
 spark-status: ## Show Spark master status

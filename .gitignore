@@ -24,7 +24,7 @@ dbt/dbt_packages/
 
 # Spark
 spark/checkpoints/
-
+spark/.ivy2
 # Airflow
 airflow/logs/
 
