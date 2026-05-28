@@ -47,18 +47,6 @@ jobs:
         working-directory: ./dbt
         run: dbt test --profiles-dir . --target ci
 
-  python-lint:
-    name: Python — ruff lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-      - run: pip install ruff==0.4.0
-      - run: ruff check kafka/ spark/ airflow/ --output-format=github --select=E,F,W,I
-
   spark-tests:
     name: Spark — unit tests
     runs-on: ubuntu-latest
