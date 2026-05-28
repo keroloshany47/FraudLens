@@ -13,6 +13,7 @@ jobs:
   publish-docs:
     name: dbt docs → GitHub Pages
     runs-on: ubuntu-latest
+
     services:
       postgres:
         image: postgres:15.6
@@ -26,28 +27,49 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install dbt-postgres==1.8.0 dbt-utils==1.2.0
+
+      # dbt-utils is a dbt package — installed via `dbt deps`, not pip.
+      - name: Install dbt-postgres
+        run: pip install dbt-postgres==1.8.0
+
       - name: Apply OLTP schema
         run: |
           PGPASSWORD=fraudlens_secret psql \
             -h localhost -U fraudlens -d fraudlens \
             -f infra/docker/postgres/init/01_schema.sql
-      - name: dbt run staging
+
+      # Must run before dbt parse / docs generate.
+      - name: dbt deps
         working-directory: ./dbt
-        run: dbt run --profiles-dir . --target ci --select staging
+        run: dbt deps --profiles-dir . --target ci
+
+      # Run all models so the generated catalog reflects the full warehouse,
+      # not just the staging layer.
+      - name: dbt run (all models)
+        working-directory: ./dbt
+        run: dbt run --profiles-dir . --target ci
+
+      # Generates target/catalog.json + target/manifest.json + target/index.html
       - name: dbt docs generate
         working-directory: ./dbt
         run: dbt docs generate --profiles-dir . --target ci
+
+      # Push the target/ directory to the gh-pages branch.
+      # `force_orphan: true` keeps gh-pages history clean (single commit).
+      # `publish_branch` is explicit so the action doesn't guess.
       - name: Publish to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
-          github_token:   ${{ secrets.GITHUB_TOKEN }}
-          publish_dir:    ./dbt/target
-          commit_message: "docs: auto-publish dbt catalog [${{ github.sha }}]"
-          force_orphan:   true
+          github_token:    ${{ secrets.GITHUB_TOKEN }}
+          publish_dir:     ./dbt/target
+          publish_branch:  gh-pages
+          commit_message:  "docs: auto-publish dbt catalog [${{ github.sha }}]"
+          force_orphan:    true

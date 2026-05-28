@@ -1,16 +1,18 @@
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Optional
+
 
 log = logging.getLogger("fraudlens.dlq")
 
 _producer = None
 
+
 def get_producer(bootstrap_servers: str = "kafka:9092"):
     global _producer
     if _producer is None:
         from kafka import KafkaProducer
+
         _producer = KafkaProducer(
             bootstrap_servers=bootstrap_servers,
             value_serializer=lambda v: json.dumps(v, default=str).encode("utf-8"),

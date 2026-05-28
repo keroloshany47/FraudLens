@@ -1,10 +1,16 @@
 HIGH_RISK_CATEGORIES = {
-    "shopping_net", "misc_net", "grocery_pos",
-    "shopping_pos", "misc_pos",
+    "shopping_net",
+    "misc_net",
+    "grocery_pos",
+    "shopping_pos",
+    "misc_pos",
 }
 MEDIUM_RISK_CATEGORIES = {
-    "entertainment", "gas_transport", "food_dining",
+    "entertainment",
+    "gas_transport",
+    "food_dining",
 }
+
 
 def compute_risk_score(amount: float, distance_km: float, category: str) -> float:
     if amount > 1000:
