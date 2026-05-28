@@ -24,6 +24,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
     AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 30
+    _PIP_ADDITIONAL_REQUIREMENTS: "kafka-python==2.0.2 psycopg2-binary==2.9.9"
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/logs:/opt/airflow/logs
@@ -315,7 +316,20 @@ services:
           memory: 300m
     networks:
       - fraudlens-network
-
+   # ─────────────────────────────────────────────────────   
+  fraudlens-exporter:
+    build:
+      context: ./monitoring/exporter
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      KAFKA_BOOTSTRAP: "kafka:9092"
+    depends_on:
+      - kafka
+    networks:
+      - fraudlens-network
+    restart: unless-stopped
 # ── VOLUMES ───────────────────────────────────────────────────
 volumes:
   postgres_data:

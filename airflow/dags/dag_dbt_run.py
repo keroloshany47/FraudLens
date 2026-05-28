@@ -8,14 +8,15 @@ from airflow.exceptions import AirflowException
 
 log = logging.getLogger("fraudlens.dag_dbt_run")
 
-DBT_DIR      = "/opt/airflow/dbt"
+DBT_DIR = "/opt/airflow/dbt"
 DBT_PROFILES = "/opt/airflow/dbt"
-DBT_TARGET   = "dev"
+DBT_TARGET = "dev"
 
 
 def find_dbt() -> str:
     """Find dbt binary regardless of install location."""
     import shutil
+
     dbt = shutil.which("dbt")
     if dbt:
         return dbt
@@ -27,6 +28,7 @@ def find_dbt() -> str:
     ]
     for c in candidates:
         import os
+
         if os.path.isfile(c):
             return c
     raise AirflowException("dbt binary not found — is dbt-postgres installed?")
@@ -40,17 +42,14 @@ def run_dbt(command: str) -> None:
         f"--profiles-dir {DBT_PROFILES} --target {DBT_TARGET}"
     )
     log.info("Running: %s", full_cmd)
-    result = subprocess.run(
-        full_cmd, shell=True, capture_output=True, text=True
-    )
+    result = subprocess.run(full_cmd, shell=True, capture_output=True, text=True)
     if result.stdout:
         log.info(result.stdout)
     if result.stderr:
         log.warning(result.stderr)
     if result.returncode != 0:
         raise AirflowException(
-            f"dbt command failed (exit {result.returncode}): {command}\n"
-            f"{result.stderr}"
+            f"dbt command failed (exit {result.returncode}): {command}\n{result.stderr}"
         )
 
 
@@ -100,7 +99,15 @@ def dag_dbt_run():
         run_dbt("docs generate")
         log.info("dbt docs regenerated")
 
-    install_deps() >> run_staging() >> test_staging() >> run_intermediate() >> run_marts() >> test_all() >> generate_docs()
+    (
+        install_deps()
+        >> run_staging()
+        >> test_staging()
+        >> run_intermediate()
+        >> run_marts()
+        >> test_all()
+        >> generate_docs()
+    )
 
 
 dag_dbt_run()
