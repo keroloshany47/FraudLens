@@ -3,9 +3,7 @@ name: CD — Publish dbt Docs
 on:
   push:
     branches: [main]
-    paths:
-      - "dbt/**"
-
+    
 permissions:
   contents: write
 
