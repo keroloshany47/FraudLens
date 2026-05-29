@@ -1,0 +1,101 @@
+# =========================================================
+# FraudLens - GitHub Linguist Configuration
+# Force proper language detection & repository stats
+# =========================================================
+
+# -----------------------------
+# SQL / dbt Models
+# -----------------------------
+*.sql linguist-detectable=true
+*.sql linguist-language=SQL
+*.sql -linguist-generated
+
+models/**/*.sql linguist-detectable=true
+models/**/*.sql linguist-language=SQL
+
+# dbt project files
+dbt_project.yml linguist-language=YAML
+packages.yml linguist-language=YAML
+profiles.yml linguist-language=YAML
+
+# -----------------------------
+# Python (Airflow / Spark)
+# -----------------------------
+*.py linguist-detectable=true
+dags/**/*.py linguist-detectable=true
+spark/**/*.py linguist-detectable=true
+
+# -----------------------------
+# Shell / Entrypoints
+# -----------------------------
+*.sh linguist-language=Shell
+*.bash linguist-language=Shell
+
+# -----------------------------
+# Docker
+# -----------------------------
+Dockerfile linguist-language=Dockerfile
+Dockerfile.* linguist-language=Dockerfile
+docker-compose.yml linguist-language=YAML
+docker-compose.yaml linguist-language=YAML
+
+# -----------------------------
+# Kafka / Spark Configs
+# -----------------------------
+*.properties linguist-language=INI
+*.conf linguist-language=INI
+
+# -----------------------------
+# Grafana / Prometheus
+# -----------------------------
+grafana/**/*.json linguist-detectable=true
+prometheus/**/*.yml linguist-language=YAML
+prometheus/**/*.yaml linguist-language=YAML
+
+# -----------------------------
+# PostgreSQL / DDL
+# -----------------------------
+schema/**/*.sql linguist-detectable=true
+warehouse/**/*.sql linguist-detectable=true
+
+# -----------------------------
+# Ignore generated / heavy files
+# -----------------------------
+target/** linguist-generated=true
+logs/** linguist-generated=true
+tmp/** linguist-generated=true
+dist/** linguist-generated=true
+build/** linguist-generated=true
+
+# dbt compiled artifacts
+target/**/* linguist-generated=true
+dbt_packages/** linguist-vendored=true
+
+# Python cache
+__pycache__/** linguist-generated=true
+*.pyc linguist-generated=true
+
+# Notebook checkpoints
+.ipynb_checkpoints/** linguist-generated=true
+
+# Virtual environments
+venv/** linguist-vendored=true
+.venv/** linguist-vendored=true
+
+# Node modules (if any)
+node_modules/** linguist-vendored=true
+
+# Minified assets
+*.min.js linguist-generated=true
+*.min.css linguist-generated=true
+
+# CSV / Parquet data
+*.csv linguist-generated=true
+*.parquet linguist-generated=true
+
+# Ignore binaries
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
