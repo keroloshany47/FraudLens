@@ -199,7 +199,7 @@ services:
   airflow-scheduler:
     <<: *airflow-common
     container_name: fraudlens-airflow-scheduler
-    command: bash -c "python -m pip install dbt-postgres==1.7.17 kafka-python==2.3.1 --quiet && airflow scheduler"
+    command: bash -c "python -m pip install dbt-postgres==1.7.17 kafka-python==2.0.2 --quiet && airflow scheduler"
     healthcheck:
       test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname $(hostname)"]
       interval: 30s
@@ -233,23 +233,33 @@ services:
 
   # ── 9. DBT ────────────────────────────────────────────────────
   dbt:
-    build:
-      context: ./dbt
-      dockerfile: Dockerfile
-    container_name: fraudlens-dbt
-    stdin_open: true
-    tty: true
-    command: ["sleep", "infinity"]
-    env_file: .env
-    volumes:
-      - ./dbt:/usr/app/dbt
-    depends_on:
-      postgres:
-        condition: service_healthy
-    profiles:
-      - dbt
-    networks:
-      - fraudlens-network
+      build:
+        context: ./dbt
+        dockerfile: Dockerfile
+      container_name: fraudlens-dbt
+
+      stdin_open: true
+      tty: true
+
+      command: ["sleep", "infinity"]
+
+      env_file: .env
+
+      volumes:
+        - ./dbt:/usr/app/dbt
+
+      ports:
+        - "8083:8083"
+
+      depends_on:
+        postgres:
+          condition: service_healthy
+
+      profiles:
+        - dbt
+
+      networks:
+        - fraudlens-network
 
   # ── 10. PROMETHEUS ───────────────────────────────────────────
   prometheus:

@@ -5,41 +5,48 @@ models:
   - name: fact_transactions
     description: >
       Central fact table of the FraudLens star schema.
-      One row per transaction with FK references to all dimensions.
+      One row per transaction. Stream rows have NULL customer_id and
+      merchant_id because FK resolution requires a DB lookup that
+      Spark does not perform in the current pipeline version.
     columns:
       - name: trans_id
-        tests: [not_null, unique]
+        data_tests: [not_null, unique]
       - name: customer_id
-        tests: [not_null]
+        description: "NULL for stream-path rows — FK only resolved for batch"
       - name: merchant_id
-        tests: [not_null]
+        description: "NULL for stream-path rows — FK only resolved for batch"
       - name: amount
-        tests:
+        data_tests:
           - not_null
           - dbt_utils.accepted_range:
               min_value: 0
       - name: is_fraud
-        tests:
+        data_tests:
           - not_null
           - accepted_values:
               values: [0, 1]
+      - name: source
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['batch', 'stream']
 
   - name: dim_customer
     description: Customer dimension — one row per unique credit card holder
     columns:
       - name: customer_id
-        tests: [not_null, unique]
+        data_tests: [not_null, unique]
 
   - name: dim_merchant
     description: Merchant dimension — one row per unique merchant
     columns:
       - name: merchant_id
-        tests: [not_null, unique]
+        data_tests: [not_null, unique]
 
   - name: dim_date
     description: Date dimension — one row per calendar day 2019-2021
     columns:
       - name: date_id
-        tests: [not_null, unique]
+        data_tests: [not_null, unique]
       - name: full_date
-        tests: [not_null, unique]
+        data_tests: [not_null, unique]

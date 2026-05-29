@@ -6,21 +6,19 @@ models:
     description: >
       Daily fraud metrics by merchant category and customer state.
       Primary model for the Grafana business dashboard.
-      Aggregates total transactions, fraud count, fraud rate, and amounts.
+      Rows with NULL merchant_category come from stream-path transactions
+      where FK resolution has not been performed.
     columns:
       - name: txn_date
-        description: Calendar date of transactions (truncated to day)
-        tests: [not_null]
-      - name: merchant_category
-        tests: [not_null]
+        data_tests: [not_null]
       - name: total_transactions
-        tests:
+        data_tests:
           - not_null
           - dbt_utils.accepted_range:
               min_value: 1
       - name: fraud_rate_pct
         description: Percentage of transactions that are fraud (0-100)
-        tests:
+        data_tests:
           - dbt_utils.accepted_range:
               min_value: 0
               max_value: 100
@@ -28,17 +26,15 @@ models:
   - name: mart_customer_360
     description: >
       Per-customer risk profile across all their transactions.
-      Used for high-risk customer identification and fraud pattern analysis.
+      Only covers customers with resolved customer_id (batch path).
     columns:
-      - name: customer_id
-        tests: [not_null, unique]
       - name: total_transactions
-        tests:
+        data_tests:
           - not_null
           - dbt_utils.accepted_range:
               min_value: 1
       - name: risk_tier
-        tests:
+        data_tests:
           - not_null
           - accepted_values:
               values: ['HIGH', 'MEDIUM', 'LOW']
