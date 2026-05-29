@@ -1,14 +1,5 @@
 # ADR-003 — PostgreSQL as the OLAP Analytical Store
 
-| Field       | Value                               |
-|-------------|-------------------------------------|
-| **Status**  | Accepted                            |
-| **Date**    | 2024-01                             |
-| **Decider** | FraudLens Engineering               |
-| **Layer**   | Transformation / Analytical Storage |
-
----
-
 ## Context
 
 FraudLens requires an analytical store to serve two Grafana dashboards that
