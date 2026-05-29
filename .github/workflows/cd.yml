@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 env:
-  DBT_PROFILES_DIR: ./dbt
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   publish-docs:
@@ -27,7 +27,7 @@ jobs:
         ports:
           - "5432:5432"
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U fraudlens"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -61,15 +61,15 @@ jobs:
 
       - name: dbt deps
         working-directory: ./dbt
-        run: dbt deps --target ci
+        run: dbt deps --profiles-dir . --target ci
 
       - name: dbt run (all models)
         working-directory: ./dbt
-        run: dbt run --target ci
+        run: dbt run --profiles-dir . --target ci
 
       - name: dbt docs generate
         working-directory: ./dbt
-        run: dbt docs generate --target ci
+        run: dbt docs generate --profiles-dir . --target ci
 
       - name: Publish to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
