@@ -43,43 +43,7 @@ companies pay Atlan or Alation thousands of dollars for — dbt gives it as part
 
 ## Architecture
 
-```
-PostgreSQL OLTP — public schema
-    transactions · customers · merchants · fraud_alerts
-              │
-              │  dbt reads via sources.yml
-              ▼
-    ┌────────────────────────┐
-    │  Staging  (views)      │   stg_transactions
-    │                        │   stg_customers
-    │                        │   stg_merchants
-    └───────────┬────────────┘
-                │
-                ▼
-    ┌────────────────────────┐
-    │  Intermediate  (view)  │   int_transaction_stats
-    │                        │   (3-way enriched join)
-    └───────────┬────────────┘
-                │
-                ▼
-    ┌──────────────────────────────────────────────┐
-    │  Marts  (tables — fraudlens_dw schema)       │
-    │                                              │
-    │  core/                                       │
-    │    fact_transactions   (star center)         │
-    │    dim_customer                              │
-    │    dim_merchant                              │
-    │    dim_date                                  │
-    │                                              │
-    │  fraud/                                      │
-    │    mart_fraud_summary                        │
-    │    mart_customer_360                         │
-    └──────────────────────────────────────────────┘
-                │
-                │  Grafana queries here
-                ▼
-    Business Dashboard  +  Pipeline Health Dashboard
-```
+![Full DW Flow](../Img/full_dw_flow.png)
 
 ---
 
@@ -254,7 +218,6 @@ Grafana uses this for the "Top 10 High-Risk Customers" table, sorted by `fraud_r
 
 ![FraudLens DW Schema](../Img/fraudlens_dw_schema.png)
 
-![Full DW Flow](../Img/full_dw_flow.png)
 
 The star schema in `fraudlens_dw` follows the Kimball methodology: one central fact table
 surrounded by dimension tables, with no joins between dimensions. Grafana can answer any analytical
