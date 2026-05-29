@@ -1,4 +1,4 @@
-name: CD — Publish dbt Docs
+name: CD 
 
 on:
   push:
