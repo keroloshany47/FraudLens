@@ -529,6 +529,7 @@ FraudLens/
 │   └── init_repo.sh
 ├── docker-compose.yml
 ├── Makefile
+├── .env.example
 └── README.md
 ```
 
