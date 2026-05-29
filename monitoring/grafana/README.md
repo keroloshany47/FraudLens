@@ -88,9 +88,9 @@ differentiation happens at the query level (`fraudlens_dw.mart_fraud_summary` vs
 Designed for fraud analysts and business stakeholders. Every panel queries the dbt-built OLAP
 models — the same numbers, consistently computed by the same SQL, that every analyst uses.
 
-![Business Dashboard — KPIs & Trend](../Img/Business%20Dashboard1.png)
+![Business Dashboard — KPIs & Trend](../Img/Business_Dashboard1.png)
 
-![Business Dashboard — Customer Risk & Live Alerts](../Img/Business%20Dashboard2.png)
+![Business Dashboard — Customer Risk & Live Alerts](../Img/Business_Dashboard2.png)
 
 ### Panels
 
