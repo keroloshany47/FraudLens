@@ -314,15 +314,16 @@ monitoring/
 │   └── requirements.txt            # kafka-python==2.0.2, prometheus-client==0.20.0
 ├── grafana/
 │   ├── provisioning/
-│   │   ├── dashboards/
-│   │   │   ├── dashboards.yaml     # provisioner config
-│   │   │   ├── business.json       # Business Dashboard (10 panels)
-│   │   │   └── pipeline_health.json  # Pipeline Health (9 panels)
-│   │   └── datasources/
-│   │       └── datasources.yaml    # PostgreSQL-OLTP + PostgreSQL-DW + Prometheus
-│   └── README.md
-└── prometheus/
-    └── prometheus.yml              # scrape config for 4 targets
+│      ├── dashboards/
+│      │   ├── dashboards.yaml     # provisioner config
+│      │   ├── business.json       # Business Dashboard (10 panels)
+│      │   └── pipeline_health.json  # Pipeline Health (9 panels)
+│      └── datasources/
+│         └── datasources.yaml    # PostgreSQL-OLTP + PostgreSQL-DW + Prometheus
+│   
+├── prometheus/
+│   └── prometheus.yml              # scrape config for 4 targets
+└── README.md
 ```
 
 ---
