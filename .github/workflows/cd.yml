@@ -1,9 +1,11 @@
-name: CD 
+
+name: CD
 
 on:
   push:
-    branches: [main]
-    
+    branches:
+      - main
+
 permissions:
   contents: write
 
@@ -31,20 +33,21 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
 
-      
       - name: Install dbt
         run: |
           pip install dbt-core==1.8.0
           pip install dbt-postgres==1.8.0
 
-      - name: Install system deps
+      - name: Install PostgreSQL client
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client
@@ -61,13 +64,18 @@ jobs:
         working-directory: ./dbt
         run: dbt deps --profiles-dir . --target ci
 
-      - name: dbt run (all models)
+      - name: dbt run
         working-directory: ./dbt
         run: dbt run --profiles-dir . --target ci
 
       - name: dbt docs generate
         working-directory: ./dbt
         run: dbt docs generate --profiles-dir . --target ci
+
+      - name: Debug dbt target
+        run: |
+          echo "===== TARGET FILES ====="
+          ls -lah ./dbt/target
 
       - name: Publish to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
