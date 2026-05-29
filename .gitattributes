@@ -1,101 +1,143 @@
-# =========================================================
-# FraudLens - GitHub Linguist Configuration
-# Force proper language detection & repository stats
-# =========================================================
+# =============================================================
+# FraudLens — .gitattributes
+# =============================================================
 
-# -----------------------------
-# SQL / dbt Models
-# -----------------------------
-*.sql linguist-detectable=true
-*.sql linguist-language=SQL
-*.sql -linguist-generated
+# -------------------------------------------------------------
+# DEFAULT: enforce LF line endings for all text files
+# (ensures consistency across macOS / Windows / Linux / Docker)
+# -------------------------------------------------------------
+* text=auto eol=lf
 
-models/**/*.sql linguist-detectable=true
-models/**/*.sql linguist-language=SQL
+# -------------------------------------------------------------
+# SHELL & SCRIPTS
+# Must stay LF — shells break on CRLF
+# -------------------------------------------------------------
+*.sh            text eol=lf
+*.bash          text eol=lf
+Makefile        text eol=lf
 
-# dbt project files
-dbt_project.yml linguist-language=YAML
-packages.yml linguist-language=YAML
-profiles.yml linguist-language=YAML
+# -------------------------------------------------------------
+# PYTHON
+# -------------------------------------------------------------
+*.py            text eol=lf diff=python
 
-# -----------------------------
-# Python (Airflow / Spark)
-# -----------------------------
-*.py linguist-detectable=true
-dags/**/*.py linguist-detectable=true
-spark/**/*.py linguist-detectable=true
+# -------------------------------------------------------------
+# SQL & dbt
+# -------------------------------------------------------------
+*.sql           text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
 
-# -----------------------------
-# Shell / Entrypoints
-# -----------------------------
-*.sh linguist-language=Shell
-*.bash linguist-language=Shell
+# -------------------------------------------------------------
+# CONFIG & DOCS
+# -------------------------------------------------------------
+*.md            text eol=lf diff=markdown
+*.txt           text eol=lf
+*.env           text eol=lf
+*.env.example   text eol=lf
+*.toml          text eol=lf
+*.cfg           text eol=lf
+*.ini           text eol=lf
+*.conf          text eol=lf
+*.properties    text eol=lf
 
-# -----------------------------
-# Docker
-# -----------------------------
-Dockerfile linguist-language=Dockerfile
-Dockerfile.* linguist-language=Dockerfile
-docker-compose.yml linguist-language=YAML
-docker-compose.yaml linguist-language=YAML
+# -------------------------------------------------------------
+# DOCKER
+# -------------------------------------------------------------
+Dockerfile      text eol=lf
+Dockerfile.*    text eol=lf
 
-# -----------------------------
-# Kafka / Spark Configs
-# -----------------------------
-*.properties linguist-language=INI
-*.conf linguist-language=INI
+# -------------------------------------------------------------
+# JSON (Grafana dashboards, package configs, etc.)
+# -------------------------------------------------------------
+*.json          text eol=lf
 
-# -----------------------------
-# Grafana / Prometheus
-# -----------------------------
-grafana/**/*.json linguist-detectable=true
-prometheus/**/*.yml linguist-language=YAML
-prometheus/**/*.yaml linguist-language=YAML
+# -------------------------------------------------------------
+# REQUIREMENTS & LOCK FILES — ours, don't touch on merge
+# -------------------------------------------------------------
+requirements*.txt        text eol=lf merge=ours
+package-lock.json        text eol=lf merge=ours
+dbt/package-lock.yml     text eol=lf merge=ours
 
-# -----------------------------
-# PostgreSQL / DDL
-# -----------------------------
-schema/**/*.sql linguist-detectable=true
-warehouse/**/*.sql linguist-detectable=true
+# -------------------------------------------------------------
+# BINARY — never diff or merge
+# -------------------------------------------------------------
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.pdf    binary
+*.zip    binary
+*.gz     binary
+*.tar    binary
+*.parquet binary
+*.jar    binary
+*.class  binary
+*.pyc    binary
 
-# -----------------------------
-# Ignore generated / heavy files
-# -----------------------------
-target/** linguist-generated=true
-logs/** linguist-generated=true
-tmp/** linguist-generated=true
-dist/** linguist-generated=true
-build/** linguist-generated=true
+# -------------------------------------------------------------
+# DATA FILES — treated as binary (no diffs, no CRLF conversion)
+# -------------------------------------------------------------
+*.csv    binary
+*.tsv    binary
 
-# dbt compiled artifacts
-target/**/* linguist-generated=true
-dbt_packages/** linguist-vendored=true
+# =============================================================
+# GITHUB LINGUIST — language detection & repo stats
+# =============================================================
+
+# --- Force-detect core languages ---
+*.sql           linguist-detectable=true  linguist-language=SQL
+*.py            linguist-detectable=true
+*.sh            linguist-detectable=true  linguist-language=Shell
+
+# --- dbt model paths ---
+dbt/models/**/*.sql     linguist-detectable=true  linguist-language=SQL
+dbt/macros/**/*.sql     linguist-detectable=true  linguist-language=SQL
+
+# --- Airflow DAGs ---
+airflow/dags/**/*.py    linguist-detectable=true
+
+# --- Spark jobs ---
+spark/jobs/**/*.py      linguist-detectable=true
+spark/tests/**/*.py     linguist-detectable=true
+
+# --- Kafka producer ---
+kafka/producer/**/*.py  linguist-detectable=true
+
+# --- Infrastructure configs ---
+docker-compose*.yml     linguist-language=YAML
+dbt/dbt_project.yml     linguist-language=YAML
+dbt/packages.yml        linguist-language=YAML
+dbt/profiles.yml        linguist-language=YAML
+
+# --- Grafana dashboards: detectable but not inflating JSON stats ---
+monitoring/grafana/provisioning/dashboards/*.json  linguist-detectable=true
+
+# --- Prometheus config ---
+monitoring/prometheus/*.yml  linguist-language=YAML
+
+# =============================================================
+# LINGUIST — exclude generated / vendored / data files
+# =============================================================
+
+# dbt compiled output
+dbt/target/**           linguist-generated=true
+dbt/dbt_packages/**     linguist-vendored=true
+
+# Airflow logs
+airflow/logs/**         linguist-generated=true
+
+# Spark checkpoints
+spark/checkpoints/**    linguist-generated=true
 
 # Python cache
-__pycache__/** linguist-generated=true
-*.pyc linguist-generated=true
+**/__pycache__/**       linguist-generated=true
+**/*.pyc                linguist-generated=true
 
-# Notebook checkpoints
-.ipynb_checkpoints/** linguist-generated=true
+# Data files
+data/**                 linguist-generated=true
 
 # Virtual environments
-venv/** linguist-vendored=true
-.venv/** linguist-vendored=true
-
-# Node modules (if any)
-node_modules/** linguist-vendored=true
-
-# Minified assets
-*.min.js linguist-generated=true
-*.min.css linguist-generated=true
-
-# CSV / Parquet data
-*.csv linguist-generated=true
-*.parquet linguist-generated=true
-
-# Ignore binaries
-*.png binary
-*.jpg binary
-*.jpeg binary
-*.gif binary
-*.pdf binary
+.venv/**                linguist-vendored=true
+venv/**                 linguist-vendored=true
