@@ -1,14 +1,5 @@
 # ADR-002 — Spark Structured Streaming with 5-Second Micro-Batch
 
-| Field       | Value                              |
-|-------------|------------------------------------|
-| **Status**  | Accepted                           |
-| **Date**    | 2024-01                            |
-| **Decider** | FraudLens Engineering              |
-| **Layer**   | Stream Processing                  |
-
----
-
 ## Context
 
 FraudLens must enrich every incoming transaction with two computed fields
