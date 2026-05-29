@@ -1,14 +1,5 @@
 # ADR-001 — Kafka in KRaft Mode (No Zookeeper)
 
-| Field       | Value                          |
-|-------------|--------------------------------|
-| **Status**  | Accepted                       |
-| **Date**    | 2024-01                        |
-| **Decider** | FraudLens Engineering          |
-| **Layer**   | Message Broker / Ingestion     |
-
----
-
 ## Context
 
 FraudLens requires a message broker to decouple the Python Kafka producer
