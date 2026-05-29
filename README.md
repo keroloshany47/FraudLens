@@ -1,45 +1,274 @@
 # FraudLens
 
-> Real-time financial fraud detection and analytics pipeline — detects fraudulent transactions in under 5 seconds, processing 1.8M transactions across batch and streaming paths.
+> Production-grade, fully containerized real-time financial fraud detection and analytics platform —
+> detecting fraudulent transactions in under 5 seconds, processing 1.8M transactions across dual
+> batch and streaming ingestion paths.
 
-Financial fraud costs the global banking industry over $40 billion annually. FraudLens is a production-grade, fully containerized data engineering platform that simulates how a real bank detects fraudulent credit card transactions in real time, while maintaining a complete 2-year historical analytical warehouse for trend analysis.
+Financial fraud costs the global banking industry over **$40 billion annually**. FraudLens is a
+production-aligned data engineering platform that simulates how a real bank detects fraudulent
+credit card transactions in real time, while maintaining a complete 2-year historical analytical
+warehouse for trend analysis, regulatory reporting, and customer risk profiling.
 
----
-
-## Architecture
-
-![FraudLens Architecture](docs/architecture.png)
-
-The pipeline runs two parallel ingestion paths that converge into a single PostgreSQL OLTP layer, which dbt transforms into an analytical warehouse queried by Grafana.
-
-**Batch path** — Airflow loads `fraudTrain.csv` (1.3M labeled transactions, 2019–2020) into PostgreSQL, then triggers dbt to build the full OLAP star schema. This seeds 2 years of fraud history before a single stream event arrives.
-
-**Streaming path** — A Python producer replays `fraudTest.csv` row by row into Kafka. Spark Structured Streaming consumes each event, computes geographic distance and a risk score using a weighted rule engine, writes enriched rows to PostgreSQL, and routes confirmed fraud events to a `fraud_alerts` Kafka topic.
-
-Both paths write to the same `transactions` table. A `source` column (`'batch'` or `'stream'`) distinguishes them. dbt reads everything together and builds unified OLAP models on top.
+The platform runs **two parallel ingestion paths** that converge into a single PostgreSQL OLTP
+layer. Apache Airflow seeds 2 years of labeled fraud history via bulk batch load. Apache Spark
+Structured Streaming replays 550K test transactions in real time, enriching each event with a
+computed risk score and a Haversine-computed geographic distance before writing back to the same
+warehouse. dbt reads both paths together and builds a unified OLAP star schema. Grafana renders the
+full picture on two live dashboards refreshing every 5–30 seconds.
 
 ---
 
-## Stack
+## Table of Contents
 
-| Layer | Technology | Role |
-|---|---|---|
-| Ingestion | Apache Kafka 3.7 (KRaft) | Message broker — 4 topics including Dead Letter Queue |
-| Stream processing | Apache Spark 3.5 Structured Streaming | Enrichment, fraud scoring, PostgreSQL writes |
-| Orchestration | Apache Airflow 2.9 (LocalExecutor) | Batch load, dbt scheduling, DLQ monitoring |
-| Transformation | dbt Core 1.8 + dbt-utils | Staging → intermediate → mart star schema |
-| OLTP | PostgreSQL 15 | Operational database (transactions, customers, merchants) |
-| OLAP | PostgreSQL 15 (`fraudlens_dw` schema) | Analytical warehouse (fact + dim tables, mart aggregations) |
-| Visualization | Grafana 10.4 | Business dashboard + pipeline health dashboard |
-| Monitoring | Prometheus 2.51 | Infrastructure metrics scraping |
-| CI | GitHub Actions | dbt tests + Python lint + Spark unit tests on every PR |
-| CD | GitHub Actions | Auto-publish dbt data catalog to GitHub Pages on every merge |
+- [Project Overview](#project-overview)
+- [Motivation & Core Problem Solved](#motivation--core-problem-solved)
+- [System Architecture](#system-architecture)
+- [End-to-End Data Flow](#end-to-end-data-flow)
+- [Technologies & Design Decisions](#technologies--design-decisions)
+- [Component Breakdown](#component-breakdown)
+- [Pipeline Results](#pipeline-results)
+- [Quick Start](#quick-start)
+- [Execution Workflow](#execution-workflow)
+- [Service URLs](#service-urls)
+- [Makefile Commands](#makefile-commands)
+- [Resilience & Failure Handling](#resilience--failure-handling)
+- [CI/CD](#cicd)
+- [Project Structure](#project-structure)
 
 ---
 
-## Results
+## Project Overview
 
-After running the full pipeline:
+FraudLens is built around a single question: *how does a bank actually detect fraud at scale?*
+
+The answer involves two complementary systems working in parallel. The first holds 2 years of
+labeled transaction history — analysts use it to identify seasonal trends, high-risk merchant
+categories, and customers with elevated fraud rates. The second watches every transaction the moment
+it arrives, computes a risk score in seconds, and routes confirmed fraud events to an alert queue
+before the customer has left the merchant.
+
+FraudLens implements both systems end-to-end using production-grade open-source tooling, all
+deployed on a single machine via Docker Compose with a peak memory footprint under 10 GB.
+
+---
+
+## Motivation & Core Problem Solved
+
+**The Problem:**
+
+Fraud detection in financial institutions requires answering two questions simultaneously:
+
+1. *Right now* — is this specific transaction suspicious? *(streaming, sub-5-second latency)*
+2. *Over time* — which customers, merchants, and categories carry the highest systemic risk?
+   *(analytical, high accuracy)*
+
+Most demonstration pipelines solve one or the other. A streaming demo shows events flowing through
+Kafka but has no historical context to compare against. An analytical warehouse produces clean
+dashboards but has no real-time dimension. Neither reflects how the problem is actually solved in
+production.
+
+**The Solution:**
+
+FraudLens unifies both in a single platform:
+
+- A **batch ingestion path** seeds 1.33M labeled transactions (2019–2020) using Airflow, giving
+  the warehouse 2 full years of ground truth before a single streaming event arrives.
+- A **streaming path** replays 550K test transactions through Kafka and Spark, enriching each
+  event with a weighted risk score and a geographic distance check, then writing results back to
+  the same PostgreSQL layer as the batch data.
+- **dbt** reads both paths together and builds a unified OLAP star schema — one definition of
+  fraud rate that every dashboard, analyst, and downstream consumer uses consistently.
+- **Grafana** renders the full picture: real-time fraud alerts from the OLTP layer and aggregated
+  trend analysis from the dbt-built OLAP marts, auto-refreshing every 10–30 seconds.
+
+---
+
+## System Architecture
+
+![FraudLens Architecture](Img/architecture.png)
+
+The system is organized into five horizontal layers:
+
+**Ingestion Layer** — A Python Kafka producer replays `fraudTest.csv` row by row in chronological
+order. An Airflow DAG bulk-loads `fraudTrain.csv` via chunked `psycopg2` inserts with FK
+resolution.
+
+**Processing Layer** — Spark Structured Streaming consumes `raw_transactions`, computes a
+Haversine geographic distance and a weighted risk score per event, and writes enriched results to
+PostgreSQL every 5 seconds via `foreachBatch`.
+
+**Storage Layer** — PostgreSQL 15 serves dual roles: the `public` schema is the operational OLTP
+layer (transactions, customers, merchants, fraud_alerts); the `fraudlens_dw` schema is the
+dbt-built OLAP layer.
+
+**Transformation Layer** — dbt Core rebuilds the full star schema daily: 3 staging views feed 1
+intermediate join model, which feeds 4 core mart tables and 2 fraud analytics mart tables.
+
+**Observability Layer** — Prometheus scrapes Kafka, Spark, and a custom Python exporter. Grafana
+renders 2 auto-provisioned dashboards. Airflow monitors the Dead Letter Queue every 15 minutes and
+alerts if Spark starts dropping events.
+
+---
+
+## End-to-End Data Flow
+
+```
+fraudTrain.csv  (1.33M rows · 2019–2020)
+       │
+       │   Airflow  dag_batch_load
+       │   Chunked psycopg2 inserts · FK dict lookups · ON CONFLICT DO NOTHING
+       ▼
+PostgreSQL OLTP — public schema
+       ├── customers      (983 unique)
+       ├── merchants      (693 unique)
+       └── transactions   source = 'batch'
+
+fraudTest.csv  (550K rows)
+       │
+       │   Python Kafka Producer
+       │   Chronological replay · 0.05s delay · gzip · acks=all
+       ▼
+Kafka: raw_transactions  (3 partitions)
+       │
+       │   Spark Structured Streaming
+       │   5-second micro-batch · foreachBatch
+       │   + Haversine distance_km
+       │   + risk_score  (weighted rule engine)
+       │   + alert_reason
+       ▼
+PostgreSQL OLTP
+       ├── transactions   source = 'stream'
+       └── fraud_alerts   is_fraud = 1  OR  risk_score ≥ 0.7
+       │
+       │   On batch failure → dlq_handler.py
+       ▼
+Kafka: dlq_transactions
+       │
+       │   Airflow  dag_dlq_monitor  (every 15 min)
+       ▼
+Alert log  →  Slack / PagerDuty in production
+
+PostgreSQL OLTP
+       │
+       │   Airflow  dag_dbt_run  (daily 06:00)
+       │   staging → intermediate → marts → tests → docs
+       ▼
+PostgreSQL OLAP — fraudlens_dw schema
+       ├── fact_transactions
+       ├── dim_customer · dim_merchant · dim_date
+       ├── mart_fraud_summary
+       └── mart_customer_360
+       │
+       │   Grafana  (queries every 10–30 s)
+       ▼
+Business Dashboard  +  Pipeline Health Dashboard
+```
+
+---
+
+## Technologies & Design Decisions
+
+| Layer | Technology | Version | Role |
+|---|---|---|---|
+| Message Broker | Apache Kafka (KRaft) | 3.7.0 | 4 topics, no Zookeeper overhead |
+| Stream Processing | Apache Spark Structured Streaming | 3.5.0 | Risk scoring, enrichment, PostgreSQL writes |
+| Orchestration | Apache Airflow (LocalExecutor) | 2.9.2 | Batch load, dbt scheduling, DLQ monitoring |
+| Transformation | dbt Core + dbt-utils | 1.8 / 1.3 | Staging → intermediate → star schema |
+| OLTP Storage | PostgreSQL | 15.6 | Operational transactions, customers, merchants, alerts |
+| OLAP Storage | PostgreSQL (`fraudlens_dw`) | 15.6 | Analytical warehouse — fact + dims + marts |
+| Visualization | Grafana | 10.4.2 | 2 auto-provisioned dashboards, 19 panels |
+| Monitoring | Prometheus + Custom Exporter | 2.51.0 | DLQ depth, events/sec, Spark + infra metrics |
+| CI | GitHub Actions | — | dbt tests + ruff lint + Spark unit tests on every PR |
+| CD | GitHub Actions | — | dbt docs → GitHub Pages on every merge to main |
+| Containerization | Docker Compose | — | 12 services · ~9.5 GB peak RAM |
+
+---
+
+## Component Breakdown
+
+### 1. Orchestration — Apache Airflow
+
+Three DAGs cover the full pipeline lifecycle. `dag_batch_load` seeds the OLTP layer and triggers
+dbt on completion. `dag_dbt_run` refreshes the OLAP warehouse daily, with staging tests running
+before any mart is built. `dag_dlq_monitor` checks DLQ depth every 15 minutes and alerts if Spark
+starts dropping events. LocalExecutor is used — no Redis, no Celery, no extra infrastructure.
+
+→ [airflow/README.md](airflow/README.md)
+
+---
+
+### 2. Batch Ingestion — Airflow + psycopg2 + pandas
+
+`dag_batch_load` loads 1.33M historical transactions from `fraudTrain.csv` into PostgreSQL using
+chunked reads, FK dict lookups (O(1) per row, 2 DB queries total), `execute_values` bulk inserts,
+and `ON CONFLICT DO NOTHING` idempotency. The task order enforces FK constraints at the database
+level: customers → merchants → transactions.
+
+→ [airflow/README.md](airflow/README.md)
+
+---
+
+### 3. Streaming Ingestion — Apache Kafka + Python Producer
+
+A Python producer replays `fraudTest.csv` row by row into Kafka in chronological order. Kafka runs
+in KRaft mode — no Zookeeper. Four topics handle the full pipeline: `raw_transactions`,
+`enriched_transactions`, `fraud_alerts`, and `dlq_transactions`. The producer implements graceful
+SIGTERM shutdown, exponential backoff reconnection, gzip compression, and `acks=all`.
+
+→ [kafka/kafka_README.md](kafka/kafka_README.md)
+
+---
+
+### 4. Stream Processing — Apache Spark Structured Streaming
+
+Spark consumes `raw_transactions`, computes a Haversine geographic distance and a weighted
+`risk_score` per event, and writes to three PostgreSQL tables every 5 seconds via `foreachBatch`.
+Fraud alerts fire when `is_fraud = 1` (ground truth) or `risk_score >= 0.7` (rule engine). Failed
+batches are routed to the Dead Letter Queue — nothing is silently dropped.
+
+```
+risk_score = (0.4 × amount_score) + (0.4 × distance_score) + (0.2 × category_score)
+```
+
+→ [spark/spark_README.md](spark/spark_README.md)
+
+---
+
+### 5. Transformation — dbt
+
+dbt transforms raw OLTP data into a clean, tested, and documented OLAP warehouse. Three staging
+views clean and type-cast the source tables. One intermediate model joins all three into a single
+enriched fact. Six mart tables — four core star schema tables and two fraud analytics aggregations
+— are materialized physically in `fraudlens_dw` for fast Grafana query response. 54 data quality
+tests cover every model.
+
+→ [dbt/README.md](dbt/README.md)
+
+---
+
+### 6. Visualization — Grafana
+
+Two dashboards are provisioned automatically from JSON files on container startup. The Business
+Dashboard queries the `fraudlens_dw` OLAP schema and shows 2 years of fraud KPIs, daily trend
+lines, and a live customer risk table. The Pipeline Health dashboard queries both OLTP and
+Prometheus, showing ingestion rates, DLQ status, and active database connections in real time.
+
+→ [monitoring/grafana/README.md](monitoring/grafana/README.md)
+
+---
+
+### 7. Monitoring — Prometheus + Custom Exporter
+
+A custom Python exporter exposes two pipeline-specific metrics on `:8000/metrics`:
+`fraudlens_dlq_depth` (unconsumed DLQ messages — should always be 0) and
+`fraudlens_events_per_second` (message rate in `raw_transactions` over the last scrape interval).
+Prometheus also scrapes Spark Master directly for executor and job-level metrics.
+
+→ [monitoring/grafana/README.md](monitoring/grafana/README.md)
+
+---
+
+## Pipeline Results
 
 | Metric | Value |
 |---|---|
@@ -49,23 +278,24 @@ After running the full pipeline:
 | Average fraud amount | $498.20 |
 | Stream events processed | 35.6K+ (growing) |
 | dbt models built | 10 |
-| dbt data quality tests | 54 (all passing) |
+| dbt data quality tests | 54 — all passing |
 | Spark micro-batch interval | 5 seconds |
 | Unique customers | 983 |
 | Unique merchants | 693 |
+| DLQ depth | 0 — clean |
 
 ---
 
-## Quick start
+## Quick Start
 
 ### Prerequisites
 
 - Docker Engine 24+
 - Git
 - 12 GB RAM minimum
-- Dataset files from Kaggle (see below)
+- Kaggle account
 
-### 1. Clone and set up
+### 1. Clone and initialize
 
 ```bash
 git clone https://github.com/keroloshany47/FraudLens.git
@@ -75,27 +305,28 @@ bash scripts/init_repo.sh
 
 ### 2. Download the dataset
 
-Download from Kaggle: [Sparkov Fraud Detection](https://www.kaggle.com/datasets/kartik2112/fraud-detection)
-
-Place both files in `data/raw/`:
-```
-data/raw/fraudTrain.csv    # 1.3M rows — batch/historical
-data/raw/fraudTest.csv     # 550K rows — streaming simulation
-```
-
-Or use the Kaggle CLI:
 ```bash
 pip install kaggle
 kaggle datasets download -d kartik2112/fraud-detection -p data/raw/ --unzip
 ```
 
-### 3. Start the stack
+Or download manually from
+[Kaggle — Sparkov Fraud Detection](https://www.kaggle.com/datasets/kartik2112/fraud-detection)
+and place both files in `data/raw/`:
+
+```
+data/raw/fraudTrain.csv    # 1.33M rows — batch / historical
+data/raw/fraudTest.csv     # 550K rows  — streaming simulation
+```
+
+### 3. Start the full stack
 
 ```bash
 make setup
 ```
 
-This starts all 9 services, waits for health checks, and creates all Kafka topics. Takes 2–3 minutes on first run (Docker image pulls).
+Starts all core services, waits for health checks, and creates all 4 Kafka topics.
+Takes 2–3 minutes on first run.
 
 ### 4. Load historical data
 
@@ -103,30 +334,51 @@ This starts all 9 services, waits for health checks, and creates all Kafka topic
 make seed
 ```
 
-Triggers the Airflow `dag_batch_load` DAG which loads 1.3M transactions into PostgreSQL, then automatically runs dbt to build the OLAP warehouse. Watch progress at **http://localhost:8082** (admin / admin).
+Triggers `dag_batch_load` — loads 1.33M transactions into PostgreSQL and automatically fires
+`dag_dbt_run` to build the full OLAP warehouse. Monitor at **http://localhost:8082**
+(admin / admin).
 
 ### 5. Start the streaming pipeline
 
-Open two terminals:
-
-**Terminal 1 — Spark streaming job:**
 ```bash
+# Terminal 1 — Spark streaming job
 make spark-submit
-```
+# Wait for: "Streaming query started — awaiting termination"
 
-Wait for `Streaming query started — awaiting termination`.
-
-**Terminal 2 — Kafka producer:**
-```bash
+# Terminal 2 — Kafka producer
 make stream
 ```
 
-### 6. Watch the dashboards
+### 6. Open the dashboards
 
-Open **http://localhost:3000** (admin / fraudlens123):
+**http://localhost:3000** — admin / fraudlens123
 
-- **FraudLens — Business Dashboard** — fraud KPIs, daily fraud rate trend, top risky customers, live fraud alerts
-- **FraudLens — Pipeline Health** — stream row count, fraud alert count, risk score distribution, pipeline status
+---
+
+## Execution Workflow
+
+### Automated path
+
+```bash
+make setup          # start all services, create Kafka topics
+make seed           # load 1.33M historical rows → triggers dbt automatically
+make spark-submit   # start Spark Structured Streaming job
+make stream         # start Kafka producer
+```
+
+### Manual execution
+
+```bash
+open http://localhost:8082    # Airflow UI — trigger any DAG manually
+
+docker compose --profile dbt up -d
+make dbt-run                  # run all dbt models
+make dbt-test                 # run all 54 tests
+make dbt-docs                 # serve catalog at http://localhost:8083
+
+make dlq-check                # inspect Dead Letter Queue depth
+make status                   # show all container status + URLs
+```
 
 ---
 
@@ -140,111 +392,11 @@ Open **http://localhost:3000** (admin / fraudlens123):
 | Kafka UI | http://localhost:8090 | — |
 | Prometheus | http://localhost:9090 | — |
 | PostgreSQL | localhost:5433 | fraudlens / fraudlens_secret |
+| dbt catalog | http://localhost:8083 | — |
 
 ---
 
-## Project structure
-
-```
-FraudLens/
-├── airflow/
-│   ├── dags/
-│   │   ├── dag_batch_load.py      # historical CSV → OLTP (idempotent)
-│   │   ├── dag_dbt_run.py         # daily dbt refresh with quality gates
-│   │   └── dag_dlq_monitor.py     # DLQ depth check every 15 minutes
-│   └── README.md
-├── dbt/
-│   ├── models/
-│   │   ├── staging/               # stg_transactions, stg_customers, stg_merchants
-│   │   ├── intermediate/          # int_transaction_stats (enriched join)
-│   │   └── marts/
-│   │       ├── core/              # fact_transactions, dim_customer, dim_merchant, dim_date
-│   │       └── fraud/             # mart_fraud_summary, mart_customer_360
-│   └── README.md
-├── kafka/
-│   ├── producer/
-│   │   └── stream_producer.py     # CSV → Kafka with graceful shutdown
-│   └── README.md
-├── spark/
-│   ├── jobs/
-│   │   ├── stream_processor.py    # Spark Structured Streaming job
-│   │   └── utils/
-│   │       ├── fraud_scorer.py    # weighted rule engine (amount + distance + category)
-│   │       ├── geo_utils.py       # Haversine distance calculation
-│   │       └── dlq_handler.py     # Dead Letter Queue routing
-│   ├── tests/
-│   │   └── test_fraud_scorer.py   # 11 unit tests — all passing
-│   └── README.md
-├── monitoring/
-│   ├── grafana/
-│   │   ├── provisioning/          # auto-provisioned datasources + dashboards
-│   │   └── README.md
-│   └── prometheus/
-│       └── prometheus.yml
-├── infra/
-│   └── docker/postgres/init/
-│       └── 01_schema.sql          # OLTP + OLAP schemas, auto-runs on container start
-├── docs/
-│   └── decisions/                 # Architecture Decision Records
-│       ├── ADR-001-kafka-kraft.md
-│       ├── ADR-002-microbatch.md
-│       └── ADR-003-postgres-olap.md
-├── .github/
-│   └── workflows/
-│       ├── ci.yml                 # dbt tests + ruff lint + Spark unit tests
-│       └── cd.yml                 # dbt docs → GitHub Pages
-├── docker-compose.yml
-└── Makefile                       # make help to see all commands
-```
-
----
-
-## Fraud scoring logic
-
-Each streaming transaction receives a `risk_score` between 0.0 and 1.0:
-
-```
-risk_score = (0.4 × amount_score) + (0.4 × distance_score) + (0.2 × category_score)
-```
-
-- **Amount** — transactions above $1,000 score 1.0; above $500 score 0.7
-- **Distance** — customer home to merchant location via Haversine; above 500km scores 1.0
-- **Category** — `shopping_net`, `misc_net`, `grocery_pos` are high-risk (0.6)
-
-A fraud alert is written when `is_fraud = 1` (ground truth label) **or** `risk_score >= 0.7` (rule engine prediction). This separation enables precision/recall analysis in the OLAP layer.
-
----
-
-## Engineering decisions
-
-Detailed Architecture Decision Records are in `docs/decisions/`. Key choices:
-
-**Kafka KRaft over Zookeeper** — removes the operational overhead of a separate Zookeeper cluster. KRaft is production-stable since Kafka 3.3 and is the future default.
-
-**Micro-batch (5s) over continuous streaming** — continuous processing is still experimental in Spark 3.5. Micro-batch gives exactly-once semantics via checkpointing and roughly 40% lower CPU usage. 5-second alert latency is acceptable for fraud detection.
-
-**PostgreSQL for both OLTP and OLAP** — a dedicated columnar store (ClickHouse, Redshift) would be faster for analytical queries but adds infrastructure complexity. At 1.3M rows, PostgreSQL with proper indexing is fast enough and eliminates a network hop between dbt and the data source.
-
-**Dead Letter Queue** — failed Spark batches route to `dlq_transactions` instead of being silently dropped. Airflow monitors the DLQ every 15 minutes and alerts if messages accumulate.
-
----
-
-## CI/CD
-
-**CI** runs on every pull request:
-- `dbt parse` + `dbt test` against a real PostgreSQL service container
-- `ruff check` on all Python source files
-- `pytest` on Spark unit tests (11 tests)
-
-**CD** runs on every merge to main:
-- `dbt docs generate` builds the full data catalog
-- Published automatically to GitHub Pages
-
-Live data catalog: **https://keroloshany47.github.io/FraudLens**
-
----
-
-## Makefile commands
+## Makefile Commands
 
 ```bash
 make help           # list all available commands
@@ -256,20 +408,141 @@ make stream         # start Kafka producer
 make spark-submit   # start Spark streaming job
 make dbt-run        # run all dbt models
 make dbt-test       # run all 54 dbt tests
-make dbt-docs       # generate and serve dbt catalog
+make dbt-docs       # generate and serve dbt catalog at :8083
 make kafka-topics   # recreate all Kafka topics
-make kafka-status   # show topic details
-make dlq-check      # inspect dead letter queue
-make status         # show all container status + URLs
-make reset          # full reset (WARNING: deletes all data)
+make kafka-status   # show topic details and message counts
+make dlq-check      # inspect Dead Letter Queue depth
+make status         # show all container status + service URLs
+make reset          # full teardown — WARNING: deletes all volumes and data
 ```
 
 ---
 
-## Data source
+## Resilience & Failure Handling
 
-[Sparkov Credit Card Fraud Detection](https://www.kaggle.com/datasets/kartik2112/fraud-detection) — 1.85M synthetic transactions generated by a simulation algorithm, covering 1,000 customers and 800 merchants across 2019–2020. Fraud rate: 0.52%. 23 features including transaction amount, customer location, merchant location, and category.
+**Idempotent batch load** — `ON CONFLICT DO NOTHING` on every `INSERT` makes the batch DAG safe to
+re-run after any crash. The final state is identical whether the DAG ran once or ten times.
 
-The dataset is split by role: `fraudTrain.csv` feeds the batch historical path; `fraudTest.csv` is replayed as a live stream.
+**Spark checkpointing** — Kafka offset progress is written to disk after every micro-batch. If the
+streaming job crashes and restarts, it resumes from the exact committed offset — no messages
+reprocessed, no messages lost.
+
+**Dead Letter Queue** — Every `foreachBatch` call wraps the PostgreSQL write in a `try/except`. On
+failure, all affected rows are published to `dlq_transactions` with an attached error reason.
+Nothing is silently dropped.
+
+**DLQ monitoring** — `dag_dlq_monitor` checks DLQ depth every 15 minutes using Kafka offset
+arithmetic. If depth is above zero, the `alert_team` branch fires. A Slack webhook stub is
+included — swap the comment block for a live `requests.post` to activate production alerting.
+
+**Airflow retries** — All tasks are configured with 1 automatic retry and a 2–5 minute backoff.
+The scheduler persists task state to PostgreSQL, so container restarts resume without losing run
+history.
 
 ---
+
+## CI/CD
+
+**CI** runs on every pull request:
+- `dbt parse` + `dbt test` against a real PostgreSQL service container
+- `ruff check` on all Python source files
+- `pytest` on 11 Spark unit tests — fraud scorer, Haversine, and alert reason builder
+
+**CD** runs on every merge to `main`:
+- `dbt docs generate` builds the full data catalog
+- Published automatically to GitHub Pages
+
+Live data catalog: **https://keroloshany47.github.io/FraudLens**
+
+---
+
+## Project Structure
+
+```
+FraudLens/
+├── airflow/
+│   ├── dags/
+│   │   ├── dag_batch_load.py      # 1.33M CSV → OLTP, idempotent, triggers dbt
+│   │   ├── dag_dbt_run.py         # daily OLAP refresh with quality gates
+│   │   └── dag_dlq_monitor.py     # DLQ depth check every 15 minutes
+│   └── README.md
+├── dbt/
+│   ├── models/
+│   │   ├── staging/               # stg_transactions · stg_customers · stg_merchants
+│   │   ├── intermediate/          # int_transaction_stats
+│   │   └── marts/
+│   │       ├── core/              # fact_transactions · dim_* tables
+│   │       └── fraud/             # mart_fraud_summary · mart_customer_360
+│   ├── macros/
+│   └── README.md
+├── kafka/
+│   ├── producer/
+│   │   └── stream_producer.py
+│   ├── topics/
+│   │   └── create_topics.sh
+│   └── kafka_README.md
+├── spark/
+│   ├── jobs/
+│   │   ├── stream_processor.py
+│   │   └── utils/
+│   │       ├── fraud_scorer.py
+│   │       ├── geo_utils.py
+│   │       └── dlq_handler.py
+│   ├── tests/
+│   │   └── test_fraud_scorer.py   # 11 unit tests
+│   └── spark_README.md
+├── monitoring/
+│   ├── exporter/
+│   │   └── fraudlens_exporter.py
+│   │
+│   ├── grafana/
+│   │   ├── provisioning/
+│   │   │   ├── datasources/
+│   │   │   │   └── datasources.yaml
+│   │   │   │
+│   │   │   └── dashboards/
+│   │   │       └── dashboards.yaml
+│   │   │
+│   │   ├── dashboards/
+│   │   │   ├── business.json
+│   │   │   └── pipeline_health.json
+│   │   │
+│   │   └── README.md
+│   │
+│   └── prometheus/
+│       └── prometheus.yml
+├── infra/
+│   └── docker/postgres/init/
+│       └── 01_schema.sql
+├── docs/
+│   └── decisions/
+│       ├── ADR-001-kafka-kraft.md
+│       ├── ADR-002-microbatch.md
+│       └── ADR-003-postgres-olap.md
+├── .github/
+│   └── workflows/
+│       ├── ci.yml
+│       └── cd.yml
+├── Img/
+├── data/raw/
+├── scripts/
+│   └── init_repo.sh
+├── docker-compose.yml
+├── Makefile
+└── README.md
+```
+
+---
+
+## Data Source
+
+[Sparkov Credit Card Fraud Detection](https://www.kaggle.com/datasets/kartik2112/fraud-detection)
+— 1.85M synthetic transactions covering 1,000 customers and 800 merchants across 2019–2020.
+Fraud rate: 0.52%. 23 features per transaction.
+
+`fraudTrain.csv` feeds the batch historical path. `fraudTest.csv` is replayed as a live stream.
+
+---
+
+*Architecture decisions → [`docs/decisions/`](docs/decisions/)  
+Live dbt catalog → [GitHub Pages](https://keroloshany47.github.io/FraudLens)*
