@@ -88,9 +88,9 @@ differentiation happens at the query level (`fraudlens_dw.mart_fraud_summary` vs
 Designed for fraud analysts and business stakeholders. Every panel queries the dbt-built OLAP
 models — the same numbers, consistently computed by the same SQL, that every analyst uses.
 
-![Business Dashboard — KPIs & Trend](../../Img/Business_Dashboard1.png)
+![Business Dashboard — KPIs & Trend](../Img/Business_Dashboard1.png)
 
-![Business Dashboard — Customer Risk & Live Alerts](../../Img/Business_Dashboard2.png)
+![Business Dashboard — Customer Risk & Live Alerts](../Img/Business_Dashboard2.png)
 
 ### Panels
 
@@ -123,7 +123,7 @@ feed is the most latency-sensitive panel on the dashboard.
 Designed for data engineers. Shows the state of the pipeline itself — ingestion volumes, DLQ
 health, active database connections, and risk score distribution.
 
-![Pipeline Health](../../Img/Pipeline%20Health.png)
+![Pipeline Health](../Img/Pipeline%20Health.png)
 
 ### Panels
 
