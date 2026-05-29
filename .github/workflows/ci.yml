@@ -3,12 +3,12 @@ name: CI
 on:
   pull_request:
     branches: [main]
+
   push:
     branches: [main]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  DBT_PROFILES_DIR: ./dbt
 
 jobs:
   # ─────────────────────────────────────────────
@@ -28,7 +28,7 @@ jobs:
         ports:
           - "5432:5432"
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U fraudlens"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -43,17 +43,19 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      
+      # Install dbt
       - name: Install dbt
         run: |
           pip install dbt-core==1.8.0
           pip install dbt-postgres==1.8.0
 
-      - name: Install system deps
+      # Install psql client
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
+      # Create OLTP schema
       - name: Apply OLTP schema
         run: |
           PGPASSWORD=fraudlens_secret psql \
@@ -62,21 +64,25 @@ jobs:
             -d fraudlens \
             -f infra/docker/postgres/init/01_schema.sql
 
+      # Install dbt packages (dbt_utils etc.)
       - name: dbt deps
         working-directory: ./dbt
-        run: dbt deps --target ci
+        run: dbt deps --profiles-dir . --target ci
 
+      # Parse project
       - name: dbt parse
         working-directory: ./dbt
-        run: dbt parse --target ci
+        run: dbt parse --profiles-dir . --target ci
 
+      # Build models
       - name: dbt run
         working-directory: ./dbt
-        run: dbt run --target ci
+        run: dbt run --profiles-dir . --target ci
 
+      # Execute tests
       - name: dbt test
         working-directory: ./dbt
-        run: dbt test --target ci
+        run: dbt test --profiles-dir . --target ci
 
   # ─────────────────────────────────────────────
   # Spark unit tests
@@ -95,7 +101,7 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install Spark test dependencies
+      - name: Install Spark dependencies
         run: |
           pip install pytest==8.2.0 pyspark==3.5.1
 
