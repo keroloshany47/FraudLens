@@ -193,12 +193,6 @@ dbt on completion. `dag_dbt_run` refreshes the OLAP warehouse daily, with stagin
 before any mart is built. `dag_dlq_monitor` checks DLQ depth every 15 minutes and alerts if Spark
 starts dropping events. LocalExecutor is used — no Redis, no Celery, no extra infrastructure.
 
-→ [airflow/README.md](airflow/README.md)
-
----
-
-### 2. Batch Ingestion — Airflow + psycopg2 + pandas
-
 `dag_batch_load` loads 1.33M historical transactions from `fraudTrain.csv` into PostgreSQL using
 chunked reads, FK dict lookups (O(1) per row, 2 DB queries total), `execute_values` bulk inserts,
 and `ON CONFLICT DO NOTHING` idempotency. The task order enforces FK constraints at the database
@@ -208,7 +202,7 @@ level: customers → merchants → transactions.
 
 ---
 
-### 3. Streaming Ingestion — Apache Kafka + Python Producer
+### 2. Streaming Ingestion — Apache Kafka + Python Producer
 
 A Python producer replays `fraudTest.csv` row by row into Kafka in chronological order. Kafka runs
 in KRaft mode — no Zookeeper. Four topics handle the full pipeline: `raw_transactions`,
@@ -219,7 +213,7 @@ SIGTERM shutdown, exponential backoff reconnection, gzip compression, and `acks=
 
 ---
 
-### 4. Stream Processing — Apache Spark Structured Streaming
+### 3. Stream Processing — Apache Spark Structured Streaming
 
 Spark consumes `raw_transactions`, computes a Haversine geographic distance and a weighted
 `risk_score` per event, and writes to three PostgreSQL tables every 5 seconds via `foreachBatch`.
@@ -234,7 +228,7 @@ risk_score = (0.4 × amount_score) + (0.4 × distance_score) + (0.2 × category_
 
 ---
 
-### 5. Transformation — dbt
+### 4. Transformation — dbt
 
 dbt transforms raw OLTP data into a clean, tested, and documented OLAP warehouse. Three staging
 views clean and type-cast the source tables. One intermediate model joins all three into a single
@@ -246,7 +240,7 @@ tests cover every model.
 
 ---
 
-### 6. Visualization — Grafana
+### 5. Visualization — Grafana
 
 Two dashboards are provisioned automatically from JSON files on container startup. The Business
 Dashboard queries the `fraudlens_dw` OLAP schema and shows 2 years of fraud KPIs, daily trend
@@ -257,7 +251,7 @@ Prometheus, showing ingestion rates, DLQ status, and active database connections
 
 ---
 
-### 7. Monitoring — Prometheus + Custom Exporter
+### 6. Monitoring — Prometheus + Custom Exporter
 
 A custom Python exporter exposes two pipeline-specific metrics on `:8000/metrics`:
 `fraudlens_dlq_depth` (unconsumed DLQ messages — should always be 0) and
