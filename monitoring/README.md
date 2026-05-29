@@ -328,5 +328,5 @@ monitoring/
 
 ---
 
-*Back to root → [README.md](../../README.md)*  
-*Related → [spark/spark_README.md](../../spark/spark_README.md) · [airflow/README.md](../../airflow/README.md) · [dbt/README.md](../../dbt/README.md)*
+*Back to root → [README.md](../README.md)*  
+*Related → [spark/spark_README.md](../spark/spark_README.md) · [airflow/README.md](../airflow/README.md) · [dbt/README.md](../dbt/README.md)*
