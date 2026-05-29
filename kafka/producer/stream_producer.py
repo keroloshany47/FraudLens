@@ -4,37 +4,32 @@ import os
 import signal
 import sys
 import time
-import hashlib
 from datetime import datetime, timezone
 
 import pandas as pd
 from kafka import KafkaProducer
 from kafka.errors import NoBrokersAvailable
 
-# ---------------- LOGGING ----------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 log = logging.getLogger("fraudlens.producer")
 
-# ---------------- CONFIG ----------------
 BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 TOPIC = os.getenv("KAFKA_TOPIC_RAW", "raw_transactions")
-DLQ_TOPIC = os.getenv("KAFKA_DLQ_TOPIC", "dlq_transactions")
-DATA_PATH = os.getenv("DATA_PATH", "/data/raw/fraudTest.csv")
 DELAY = float(os.getenv("PRODUCER_DELAY_SECONDS", "0.05"))
-
+DATA_PATH = os.getenv("DATA_PATH", "/data/raw/fraudTest.csv")
 MAX_RETRIES = 5
 RETRY_BACKOFF = 3
 
 _running = True
 
 
-# ---------------- SIGNAL HANDLING ----------------
 def handle_signal(sig, frame):
     global _running
-    log.info("Shutdown signal received — stopping producer")
+    log.info("Shutdown signal received — stopping producer gracefully")
     _running = False
 
 
@@ -42,13 +37,6 @@ signal.signal(signal.SIGTERM, handle_signal)
 signal.signal(signal.SIGINT, handle_signal)
 
 
-# ---------------- SURROGATE KEY GENERATION ----------------
-def hash_id(value: str) -> int:
-    """Deterministic surrogate key generator"""
-    return int(hashlib.md5(str(value).encode()).hexdigest()[:12], 16)
-
-
-# ---------------- PRODUCER ----------------
 def build_producer() -> KafkaProducer:
     for attempt in range(1, MAX_RETRIES + 1):
         try:
@@ -57,81 +45,62 @@ def build_producer() -> KafkaProducer:
                 value_serializer=lambda v: json.dumps(v, default=str).encode("utf-8"),
                 key_serializer=lambda k: k.encode("utf-8") if k else None,
                 acks="all",
-                retries=5,
-                linger_ms=10,
+                retries=3,
+                max_in_flight_requests_per_connection=1,
                 compression_type="gzip",
             )
             log.info("Connected to Kafka at %s", BOOTSTRAP_SERVERS)
             return producer
         except NoBrokersAvailable:
-            log.warning("Kafka not ready (attempt %s/%s)", attempt, MAX_RETRIES)
+            log.warning(
+                "Kafka not ready (attempt %d/%d) — retrying in %ds",
+                attempt,
+                MAX_RETRIES,
+                RETRY_BACKOFF,
+            )
             time.sleep(RETRY_BACKOFF)
-
-    log.error("Kafka unavailable — exiting")
+    log.error("Could not connect to Kafka after %d attempts. Exiting.", MAX_RETRIES)
     sys.exit(1)
 
 
-# ---------------- VALIDATION ----------------
-def validate_row(row: dict) -> bool:
-    """Hard validation before sending"""
-    required_fields = ["trans_num", "cc_num", "merchant"]
-
-    for f in required_fields:
-        if not row.get(f):
-            return False
-
-    return True
-
-
-# ---------------- MESSAGE BUILDER ----------------
 def row_to_message(row: dict) -> dict:
-    """
-    FIXED VERSION:
-    - ensures customer_id exists
-    - ensures merchant_id exists
-    - never sends NULL FK
-    """
-
-    customer_id = row.get("cc_num")
-    merchant_raw = row.get("merchant")
-
     return {
-        "trans_id": row.get("trans_num"),
-
-        # FIX: surrogate keys instead of missing IDs
-        "customer_id": hash_id(customer_id) if customer_id else -1,
-        "merchant_id": hash_id(merchant_raw) if merchant_raw else -1,
-
-        "trans_date": str(row.get("trans_date_trans_time")),
-        "amount": float(row.get("amt", 0.0)),
-
+        "trans_num": row.get("trans_num"),
+        "trans_date_trans_time": str(row.get("trans_date_trans_time")),
+        "unix_time": int(row.get("unix_time", 0)),
+        "amt": float(row.get("amt", 0.0)),
+        "cc_num": int(row.get("cc_num", 0)),
+        "merchant": row.get("merchant"),
+        "category": row.get("category"),
+        "merch_lat": float(row.get("merch_lat", 0.0)),
+        "merch_long": float(row.get("merch_long", 0.0)),
         "lat": float(row.get("lat", 0.0)),
         "long": float(row.get("long", 0.0)),
-
-        "category": row.get("category"),
+        "city_pop": int(row.get("city_pop", 0)),
         "is_fraud": int(row.get("is_fraud", 0)),
-
-        "source": "stream",
-
+        "first": row.get("first"),
+        "last": row.get("last"),
+        "gender": row.get("gender"),
+        "dob": str(row.get("dob")),
+        "job": row.get("job"),
+        "street": row.get("street"),
+        "city": row.get("city"),
+        "state": row.get("state"),
+        "zip": str(row.get("zip")),
         "produced_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
-# ---------------- DLQ HANDLER ----------------
-def send_dlq(producer, row, reason):
-    msg = {
-        "reason": reason,
-        "raw": row,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-
-    producer.send(DLQ_TOPIC, value=msg)
+def on_send_error(exc):
+    log.error("Failed to deliver message: %s", exc)
 
 
-# ---------------- MAIN ----------------
 def main():
-    log.info("Starting FraudLens Producer (FIXED VERSION)")
-    log.info("Topic: %s", TOPIC)
+    log.info("Starting FraudLens Kafka producer")
+    log.info("  Topic  : %s", TOPIC)
+    log.info("  Broker : %s", BOOTSTRAP_SERVERS)
+    log.info("  Delay  : %.3fs (%.0f msg/s)", DELAY, 1 / DELAY if DELAY > 0 else 0)
+    log.info("  Source : %s", DATA_PATH)
 
     if not os.path.exists(DATA_PATH):
         log.error("Dataset not found: %s", DATA_PATH)
@@ -139,55 +108,69 @@ def main():
 
     producer = build_producer()
 
-    df = pd.read_csv(DATA_PATH)
+    log.info("Loading dataset...")
+    df = pd.read_csv(DATA_PATH, parse_dates=["trans_date_trans_time"])
     df = df.sort_values("unix_time").reset_index(drop=True)
-
     total = len(df)
-    sent = 0
-    dropped = 0
+    log.info("Loaded %s rows — streaming in chronological order", f"{total:,}")
 
-    log.info("Loaded %s rows", f"{total:,}")
+    sent = 0
+    fraud_sent = 0
+    errors = 0
+    start_time = time.time()
+    last_log_time = start_time
 
     for _, row in df.iterrows():
         if not _running:
             break
 
-        row_dict = row.to_dict()
-
         try:
-            # ---------------- VALIDATION ----------------
-            if not validate_row(row_dict):
-                send_dlq(producer, row_dict, "missing_required_fields")
-                dropped += 1
-                continue
-
-            msg = row_to_message(row_dict)
-            key = msg["trans_id"]
+            msg = row_to_message(row.to_dict())
+            key = msg["trans_num"] or str(sent)
 
             producer.send(
                 TOPIC,
                 key=key,
-                value=msg
-            )
+                value=msg,
+            ).add_errback(on_send_error)
 
             sent += 1
+            if msg["is_fraud"] == 1:
+                fraud_sent += 1
+
+            now = time.time()
+            if now - last_log_time >= 10:
+                elapsed = now - start_time
+                rate = sent / elapsed if elapsed > 0 else 0
+                pct = (sent / total) * 100
+                log.info(
+                    "Progress: %s/%s (%.1f%%) | %.0f msg/s | fraud: %s | errors: %s",
+                    f"{sent:,}",
+                    f"{total:,}",
+                    pct,
+                    rate,
+                    f"{fraud_sent:,}",
+                    errors,
+                )
+                last_log_time = now
 
             if DELAY > 0:
                 time.sleep(DELAY)
 
-        except Exception as e:
-            log.error("Failed row → DLQ: %s", e)
-            send_dlq(producer, row_dict, str(e))
-            dropped += 1
+        except Exception as exc:
+            log.warning("Row %d skipped — %s", sent, exc)
+            errors += 1
 
     producer.flush()
-    producer.close()
-
+    elapsed = time.time() - start_time
     log.info(
-        "DONE → sent=%s dropped=%s",
+        "Stream complete: %s messages sent in %.1fs | fraud: %s | errors: %s",
         f"{sent:,}",
-        f"{dropped:,}"
+        elapsed,
+        f"{fraud_sent:,}",
+        errors,
     )
+    producer.close()
 
 
 if __name__ == "__main__":
