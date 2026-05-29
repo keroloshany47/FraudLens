@@ -258,7 +258,7 @@ A custom Python exporter exposes two pipeline-specific metrics on `:8000/metrics
 `fraudlens_events_per_second` (message rate in `raw_transactions` over the last scrape interval).
 Prometheus also scrapes Spark Master directly for executor and job-level metrics.
 
-→ [monitoring/grafana/README.md](monitoring/grafana/README.md)
+→ [monitoring/grafana/README.md](monitoring/README.md)
 
 ---
 
@@ -497,14 +497,15 @@ FraudLens/
 │   │   │   └── dashboards/
 │   │   │       └── dashboards.yaml
 │   │   │
-│   │   ├── dashboards/
-│   │   │   ├── business.json
-│   │   │   └── pipeline_health.json
-│   │   │
-│   │   └── README.md
+│   │   └──  dashboards/
+│   │           ├── business.json
+│   │           └── pipeline_health.json
+│   │   
+│   │   
 │   │
-│   └── prometheus/
-│       └── prometheus.yml
+│   ├── prometheus/
+│   │    └── prometheus.yml
+│   └── README.md
 ├── infra/
 │   └── docker/postgres/init/
 │       └── 01_schema.sql
