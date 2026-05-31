@@ -1,0 +1,190 @@
+<mxfile host="Electron">
+  <diagram name="FraudLens Architecture" id="TstMGB7f6nhTWJFYOpkB">
+    <mxGraphModel dx="2840" dy="2296" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-1" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=28;fontStyle=1;" value="FraudLens — Real-Time Fraud Detection Platform" vertex="1">
+          <mxGeometry width="700" x="500" y="-50" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-2" parent="1" style="swimlane;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" value="DATA SOURCES" vertex="1">
+          <mxGeometry height="290" width="280" x="40" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-3" parent="-TsE6_qdpoE4nvw58yYb-2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="fraudTrain.csv&#xa;1.3M rows&#xa;Batch Dataset" vertex="1">
+          <mxGeometry height="80" width="110" x="20" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-4" parent="-TsE6_qdpoE4nvw58yYb-2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="fraudTest.csv&#xa;550K rows&#xa;Streaming Dataset" vertex="1">
+          <mxGeometry height="80" width="110" x="150" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-5" parent="-TsE6_qdpoE4nvw58yYb-2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="Python Producer&#xa;Row-by-row JSON publish&#xa;produced_at timestamp&#xa;DELAY = 0.05s" vertex="1">
+          <mxGeometry height="70" width="180" x="40" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-6" parent="1" style="swimlane;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" value="APACHE KAFKA (KRaft Mode)" vertex="1">
+          <mxGeometry height="300" width="360" x="380" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-7" parent="-TsE6_qdpoE4nvw58yYb-6" style="shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="raw_transactions" vertex="1">
+          <mxGeometry height="40" width="220" x="40" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-8" parent="-TsE6_qdpoE4nvw58yYb-6" style="shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="enriched_transactions" vertex="1">
+          <mxGeometry height="40" width="220" x="40" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-9" parent="-TsE6_qdpoE4nvw58yYb-6" style="shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="fraud_alerts" vertex="1">
+          <mxGeometry height="40" width="220" x="40" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-10" parent="-TsE6_qdpoE4nvw58yYb-6" style="shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;fillColor=#f8cecc;strokeColor=#b85450;" value="dlq_transactions&#xa;Dead Letter Queue" vertex="1">
+          <mxGeometry height="50" width="220" x="40" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-11" parent="-TsE6_qdpoE4nvw58yYb-6" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" value="Kafka UI&#xa;:8090" vertex="1">
+          <mxGeometry height="60" width="70" x="270" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-12" parent="1" style="swimlane;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" value="APACHE SPARK — Structured Streaming 3.5" vertex="1">
+          <mxGeometry height="300" width="340" x="780" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-13" parent="-TsE6_qdpoE4nvw58yYb-12" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;" value="Spark Master" vertex="1">
+          <mxGeometry height="50" width="120" x="120" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-14" parent="-TsE6_qdpoE4nvw58yYb-12" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;" value="Worker 1" vertex="1">
+          <mxGeometry height="50" width="100" x="50" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-15" parent="-TsE6_qdpoE4nvw58yYb-12" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;" value="Worker 2" vertex="1">
+          <mxGeometry height="50" width="100" x="210" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-16" parent="-TsE6_qdpoE4nvw58yYb-12" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="Fraud Scoring&#xa;Geo Enrichment&#xa;Micro-batch 5s Trigger" vertex="1">
+          <mxGeometry height="70" width="200" x="80" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-43" edge="1" parent="-TsE6_qdpoE4nvw58yYb-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="11" y="67" />
+              <mxPoint x="110" y="67" />
+            </Array>
+            <mxPoint x="-60" y="67" as="sourcePoint" />
+            <mxPoint x="110" y="62.47999999999999" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-48" edge="1" parent="-TsE6_qdpoE4nvw58yYb-12" source="-TsE6_qdpoE4nvw58yYb-13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;hachureGap=4;jiggle=2;curveFitting=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.64;entryY=-0.016;entryDx=0;entryDy=0;entryPerimeter=0;fontFamily=Architects Daughter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DArchitects%2BDaughter;" target="-TsE6_qdpoE4nvw58yYb-14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-49" edge="1" parent="-TsE6_qdpoE4nvw58yYb-12" source="-TsE6_qdpoE4nvw58yYb-13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;hachureGap=4;jiggle=2;curveFitting=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.4;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;fontFamily=Architects Daughter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DArchitects%2BDaughter;" target="-TsE6_qdpoE4nvw58yYb-15">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-52" edge="1" parent="1" source="-TsE6_qdpoE4nvw58yYb-17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;hachureGap=4;jiggle=2;curveFitting=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;fontFamily=Architects Daughter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DArchitects%2BDaughter;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1310" y="509.9999999999998" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-17" parent="1" style="swimlane;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" value="PostgreSQL OLTP — Port 5433" vertex="1">
+          <mxGeometry height="300" width="300" x="1180" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-18" parent="-TsE6_qdpoE4nvw58yYb-17" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="transactions" vertex="1">
+          <mxGeometry height="40" width="200" x="40" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-19" parent="-TsE6_qdpoE4nvw58yYb-17" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="customers" vertex="1">
+          <mxGeometry height="40" width="200" x="40" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-20" parent="-TsE6_qdpoE4nvw58yYb-17" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="merchants" vertex="1">
+          <mxGeometry height="40" width="200" x="40" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-21" parent="-TsE6_qdpoE4nvw58yYb-17" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="fraud_alerts" vertex="1">
+          <mxGeometry height="40" width="200" x="40" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-53" edge="1" parent="1" source="-TsE6_qdpoE4nvw58yYb-22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;hachureGap=4;jiggle=2;curveFitting=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;fontFamily=Architects Daughter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DArchitects%2BDaughter;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="950" y="629.9999999999998" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-22" parent="1" style="swimlane;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" value="Apache Airflow 2.9 — LocalExecutor" vertex="1">
+          <mxGeometry height="240" width="320" x="1160" y="525" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-23" parent="-TsE6_qdpoE4nvw58yYb-22" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" value="dag_batch_load" vertex="1">
+          <mxGeometry height="40" width="220" x="50" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-24" parent="-TsE6_qdpoE4nvw58yYb-22" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" value="dag_dbt_run" vertex="1">
+          <mxGeometry height="40" width="220" x="50" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-25" parent="-TsE6_qdpoE4nvw58yYb-22" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" value="dag_dlq_monitor" vertex="1">
+          <mxGeometry height="40" width="220" x="50" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-54" edge="1" parent="1" source="-TsE6_qdpoE4nvw58yYb-26" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;hachureGap=4;jiggle=2;curveFitting=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;fontFamily=Architects Daughter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DArchitects%2BDaughter;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="430" y="632.5714285714287" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-26" parent="1" style="swimlane;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" value="dbt Core 1.8" vertex="1">
+          <mxGeometry height="245" width="380" x="560" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-27" parent="-TsE6_qdpoE4nvw58yYb-26" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" value="stg_transactions" vertex="1">
+          <mxGeometry height="40" width="220" x="50" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-28" parent="-TsE6_qdpoE4nvw58yYb-26" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" value="mart_fraud_summary" vertex="1">
+          <mxGeometry height="40" width="220" x="50" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-29" parent="-TsE6_qdpoE4nvw58yYb-26" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" value="mart_customer_360" vertex="1">
+          <mxGeometry height="40" width="220" x="50" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-38" parent="1" style="swimlane;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" value="CI / CD — GitHub Actions" vertex="1">
+          <mxGeometry height="160" width="650" x="110" y="800" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-39" parent="-TsE6_qdpoE4nvw58yYb-38" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" value="CI Pipeline&#xa;- Ruff Lint&#xa;- dbt parse + test&#xa;- Spark unit tests" vertex="1">
+          <mxGeometry height="90" width="270" x="30" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-40" parent="-TsE6_qdpoE4nvw58yYb-38" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" value="CD Pipeline&#xa;- dbt docs generate&#xa;- GitHub Pages publish&#xa;- Live data catalog" vertex="1">
+          <mxGeometry height="90" width="270" x="350" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-41" edge="1" parent="1" source="-TsE6_qdpoE4nvw58yYb-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" target="-TsE6_qdpoE4nvw58yYb-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-42" edge="1" parent="1" source="-TsE6_qdpoE4nvw58yYb-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" target="-TsE6_qdpoE4nvw58yYb-7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="330" y="285" />
+              <mxPoint x="330" y="200" />
+              <mxPoint x="530" y="200" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-44" edge="1" parent="1" source="-TsE6_qdpoE4nvw58yYb-16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" target="-TsE6_qdpoE4nvw58yYb-18">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="940" y="290" />
+              <mxPoint x="1190" y="290" />
+              <mxPoint x="1190" y="170" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-35" parent="1" style="swimlane;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" value="MONITORING" vertex="1">
+          <mxGeometry height="160" width="590" x="890" y="800" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-36" parent="-TsE6_qdpoE4nvw58yYb-35" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" value="Grafana :3000&#xa;Fraud KPIs&#xa;Kafka Lag&#xa;DLQ Depth" vertex="1">
+          <mxGeometry height="90" width="190" x="50" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-37" parent="-TsE6_qdpoE4nvw58yYb-35" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" value="Prometheus :9090&#xa;Kafka Metrics&#xa;Spark Metrics&#xa;Postgres Exporter" vertex="1">
+          <mxGeometry height="90" width="200" x="300" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-51" edge="1" parent="1" source="-TsE6_qdpoE4nvw58yYb-30" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;hachureGap=4;jiggle=2;curveFitting=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;fontFamily=Architects Daughter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DArchitects%2BDaughter;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="240" y="519.9999999999998" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-30" parent="1" style="swimlane;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" value="PostgreSQL DW — fraudlens_dw" vertex="1">
+          <mxGeometry height="260" width="320" x="90" y="495" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-31" parent="-TsE6_qdpoE4nvw58yYb-30" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="fact_transactions" vertex="1">
+          <mxGeometry height="40" width="220" x="50" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-32" parent="-TsE6_qdpoE4nvw58yYb-30" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="dim_customer" vertex="1">
+          <mxGeometry height="40" width="220" x="50" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-33" parent="-TsE6_qdpoE4nvw58yYb-30" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="dim_merchant" vertex="1">
+          <mxGeometry height="40" width="220" x="50" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-34" parent="-TsE6_qdpoE4nvw58yYb-30" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="dim_date" vertex="1">
+          <mxGeometry height="40" width="220" x="50" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="-TsE6_qdpoE4nvw58yYb-55" parent="1" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;hachureGap=4;jiggle=2;curveFitting=1;fontFamily=Architects Daughter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DArchitects%2BDaughter;fillColor=none;" value="" vertex="1">
+          <mxGeometry height="940" width="1740" x="-70" y="70" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
