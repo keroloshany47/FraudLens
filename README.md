@@ -493,16 +493,11 @@ FraudLens/
 │   │   ├── provisioning/
 │   │   │   ├── datasources/
 │   │   │   │   └── datasources.yaml
-│   │   │   │
 │   │   │   └── dashboards/
 │   │   │       └── dashboards.yaml
-│   │   │
 │   │   └──  dashboards/
 │   │           ├── business.json
 │   │           └── pipeline_health.json
-│   │   
-│   │   
-│   │
 │   ├── prometheus/
 │   │    └── prometheus.yml
 │   └── README.md
